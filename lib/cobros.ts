@@ -9,6 +9,7 @@
 
 import { randomInt } from "node:crypto";
 import { Redis } from "@upstash/redis";
+import type { LineaCobro } from "./catalogo";
 
 export type EstadoCobro = "esperando" | "pagado";
 
@@ -20,6 +21,8 @@ export type Cobro = {
   monto: number;
   /** Identificador del QR que asigna Banxico. Vacío mientras Pey no responde. */
   codiQrId: string;
+  /** Qué se vendió (con el precio de ese momento). No existe en un cobro de monto libre. */
+  items?: LineaCobro[];
   /** Momentos en milisegundos (hora del servidor). */
   creadoEn: number;
   venceEn: number;
@@ -193,6 +196,16 @@ function almacen(): Almacen {
 // Operaciones
 // ---------------------------------------------------------------------------
 
+function leerItems(texto: string | undefined): LineaCobro[] | undefined {
+  if (!texto) return undefined;
+  try {
+    const lista: unknown = JSON.parse(texto);
+    return Array.isArray(lista) ? (lista as LineaCobro[]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function aCobro(campos: Campos): Cobro {
   const numero = (texto: string | undefined) => (texto === undefined || texto === "" ? undefined : Number(texto));
   return {
@@ -200,6 +213,7 @@ function aCobro(campos: Campos): Cobro {
     estado: campos.estado === "pagado" ? "pagado" : "esperando",
     monto: Number(campos.monto),
     codiQrId: campos.codiQrId ?? "",
+    items: leerItems(campos.items),
     creadoEn: Number(campos.creadoEn),
     venceEn: Number(campos.venceEn),
     montoPagado: numero(campos.montoPagado),
@@ -215,7 +229,11 @@ function aCobro(campos: Campos): Cobro {
  * La referencia son 7 dígitos (el máximo que acepta Pey) y nunca empieza
  * en cero, para que no cambie si alguien la trata como número.
  */
-export async function guardarCobroEsperando(monto: number, segundosDeVida: number): Promise<Cobro> {
+export async function guardarCobroEsperando(
+  monto: number,
+  segundosDeVida: number,
+  items?: LineaCobro[],
+): Promise<Cobro> {
   const db = almacen();
   const creadoEn = Date.now();
   const venceEn = creadoEn + segundosDeVida * 1000;
@@ -229,6 +247,7 @@ export async function guardarCobroEsperando(monto: number, segundosDeVida: numbe
       creadoEn: String(creadoEn),
       venceEn: String(venceEn),
     };
+    if (items && items.length > 0) campos.items = JSON.stringify(items);
     if (await db.crear(ref, campos)) return aCobro(campos);
   }
   throw new Error("No se encontró una referencia libre");

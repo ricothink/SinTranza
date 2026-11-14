@@ -25,6 +25,7 @@ export async function GET(_peticion: Request, { params }: { params: Promise<{ re
         ref: cobro.ref,
         estado: cobro.estado,
         monto: cobro.monto,
+        items: cobro.items,
         creadoEn: cobro.creadoEn,
         venceEn: cobro.venceEn,
         // Solo vienen cuando ya está pagado:

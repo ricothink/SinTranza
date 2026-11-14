@@ -1,7 +1,15 @@
 // POST /api/cobros
-// Recibe el monto, guarda el cobro como "esperando", pide el QR a Pey y lo devuelve.
+// Recibe la venta, guarda el cobro como "esperando", pide el QR a Pey y lo devuelve.
+//
+// La venta llega de dos formas:
+//   { items: [{ id, cantidad }] } → venta de la tiendita: el servidor calcula el
+//                                   total con SU catálogo (lib/catalogo.ts).
+//   { monto: "150.50" }           → cobro de monto libre (teclado).
+// Si vienen las dos, solo cuentan los productos: el monto que mande el celular
+// no puede cambiar el total.
 
 import { NextResponse } from "next/server";
+import { armarCobro, type LineaCobro } from "@/lib/catalogo";
 import { AlmacenNoConfigurado, asignarQr, descartarCobro, guardarCobroEsperando } from "@/lib/cobros";
 import { crearQrCodi, EXPIRACION_MINIMA_SEGUNDOS, PeyError } from "@/lib/pey";
 
@@ -31,16 +39,25 @@ export async function POST(peticion: Request) {
     return NextResponse.json({ error: "Falta el monto" }, { status: 400, headers: sinCache });
   }
 
-  const monto = leerMonto((cuerpo as { monto?: unknown } | null)?.monto);
-  if (monto === null) {
-    return NextResponse.json({ error: "Monto inválido" }, { status: 400, headers: sinCache });
+  const entrada = cuerpo as { monto?: unknown; items?: unknown } | null;
+  let monto: number;
+  let lineas: LineaCobro[] | undefined;
+  if (entrada?.items !== undefined) {
+    const armado = armarCobro(entrada.items);
+    if (!armado.ok) return NextResponse.json({ error: armado.error }, { status: 400, headers: sinCache });
+    monto = armado.monto;
+    lineas = armado.lineas;
+  } else {
+    const libre = leerMonto(entrada?.monto);
+    if (libre === null) return NextResponse.json({ error: "Monto inválido" }, { status: 400, headers: sinCache });
+    monto = libre;
   }
 
   let ref: string | null = null;
   try {
     // 1. Se guarda primero como "esperando": así el aviso de pago siempre
     //    encuentra el cobro, por rápido que llegue.
-    const cobro = await guardarCobroEsperando(monto, SEGUNDOS_DE_VIDA);
+    const cobro = await guardarCobroEsperando(monto, SEGUNDOS_DE_VIDA, lineas);
     ref = cobro.ref;
 
     // 2. Se pide el QR a Pey con esa misma referencia.
@@ -59,6 +76,7 @@ export async function POST(peticion: Request) {
         ref: cobro.ref,
         estado: cobro.estado,
         monto: cobro.monto,
+        items: cobro.items,
         qrString: qr.qrString,
         creadoEn: cobro.creadoEn,
         venceEn: cobro.venceEn,
