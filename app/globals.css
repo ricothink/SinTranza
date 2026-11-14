@@ -199,32 +199,37 @@ button:focus-visible {
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
+/* El menú es una lista: un platillo por renglón, como en la hoja impresa. */
+.aviso-prueba {
+  margin: 10px 14px;
+  padding: 7px 10px;
+  border: 3px dashed var(--tinta);
+  font: 700 11px/1.2 var(--leg);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
 .prods {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   background: var(--papel);
 }
 .prod {
   position: relative;
   display: flex;
-  min-height: clamp(98px, 12vh, 128px);
+  min-height: 68px;
   background: var(--papel);
   color: var(--tinta);
-  border-right: 3px solid var(--tinta);
   border-bottom: 3px solid var(--tinta);
-}
-.prod:nth-child(even) {
-  border-right: 0;
 }
 .prod-add {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 10px 14px;
   text-align: left;
 }
 .prod-add:active {
@@ -232,18 +237,23 @@ button:focus-visible {
   color: var(--papel);
 }
 .prod .nom {
-  font: 700 clamp(12px, 1.8vh, 16px) / 1.15 var(--leg);
+  flex: 1;
+  min-width: 0;
+  font: 700 clamp(14px, 2vh, 17px) / 1.15 var(--leg);
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  padding-right: 34px;
 }
 .prod .pre {
-  font: 700 clamp(26px, 4.4vh, 40px) / 1 var(--cond);
+  flex: none;
+  font: 700 clamp(26px, 4vh, 36px) / 1 var(--cond);
   font-variant-numeric: tabular-nums;
 }
 .prod.lleva {
   background: var(--tinta);
   color: var(--papel);
+}
+.prod.lleva .prod-add {
+  padding-right: 126px;
 }
 .prod.lleva .prod-add:active {
   background: var(--papel);
@@ -251,19 +261,19 @@ button:focus-visible {
 }
 .prod .cant {
   position: absolute;
-  top: 7px;
-  right: 10px;
-  font: 700 clamp(22px, 3.6vh, 32px) / 1 var(--cond);
+  top: 50%;
+  right: 72px;
+  transform: translateY(-50%);
+  font: 700 clamp(24px, 3.8vh, 32px) / 1 var(--cond);
   pointer-events: none;
 }
 .prod .menos {
   position: absolute;
+  top: 0;
   right: 0;
   bottom: 0;
-  width: 54px;
-  height: 54px;
+  width: 64px;
   border-left: 3px solid var(--papel);
-  border-top: 3px solid var(--papel);
   color: var(--papel);
   font: 700 38px/1 var(--cond);
 }
@@ -319,6 +329,188 @@ button:focus-visible {
   opacity: 0.7;
 }
 
+/* ---------- la tira: lo último que selló el banco ---------- */
+.tira {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  height: 44px;
+  padding-left: 14px;
+  border-bottom: 3px solid var(--tinta);
+  text-align: left;
+  white-space: nowrap;
+}
+.tira .ult {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: center;
+  font: 600 clamp(15px, 2.6vh, 20px) / 1.1 var(--cond);
+  letter-spacing: 0.04em;
+}
+.tira .ult.nada {
+  font: 700 11px/1.1 var(--leg);
+  letter-spacing: 0.1em;
+}
+.tira .hoy {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  background: var(--tinta);
+  color: var(--papel);
+  font: 700 clamp(14px, 2.4vh, 18px) / 1 var(--cond);
+  letter-spacing: 0.06em;
+}
+.tira:active .hoy {
+  background: var(--papel);
+  color: var(--tinta);
+}
+
+/* ---------- en cuántos minutos estará listo el pedido ---------- */
+.listo-en {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px 0;
+}
+.listo-en .rot {
+  flex: none;
+}
+.chip {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 3px solid var(--tinta);
+  font: 700 22px/1 var(--cond);
+  font-variant-numeric: tabular-nums;
+}
+.chip.activo,
+.chip:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+/* ---------- REGISTRO · los cobros de hoy ---------- */
+.registro {
+  flex-direction: column;
+}
+.libro {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.renglones {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  list-style: none;
+}
+.fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 70px;
+  padding: 8px 14px;
+  border-bottom: 3px solid var(--tinta);
+}
+.fila .cuando {
+  flex: none;
+  font: 700 clamp(20px, 3.4vh, 28px) / 1 var(--cond);
+  font-variant-numeric: tabular-nums;
+}
+.fila .cuando small {
+  display: block;
+  margin-top: 6px;
+  font: 700 10px/1 var(--leg);
+  letter-spacing: 0.12em;
+}
+.fila .pag {
+  flex: none;
+  border: 3px solid var(--tinta);
+  border-radius: 7px;
+  padding: 3px 7px 4px;
+  font: 700 13px/1 var(--cond);
+  letter-spacing: 0.14em;
+  transform: rotate(-5deg);
+}
+.fila .cuanto {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  white-space: nowrap;
+  font: 700 clamp(38px, 6.6vh, 56px) / 1 var(--cond);
+  font-variant-numeric: tabular-nums;
+}
+.fila .cuanto.largo {
+  font-size: clamp(27px, 4.7vh, 44px);
+}
+.fila .cuanto .peso {
+  font-size: 0.55em;
+  vertical-align: top;
+  margin-right: 0.08em;
+}
+.fila .que {
+  flex: 0 0 100%;
+  padding-bottom: 2px;
+  font: 700 12px/1.3 var(--leg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.fila.nueva {
+  animation: golpe 0.13s steps(1, end);
+}
+.vacio {
+  padding: 22px 14px;
+}
+.vacio b {
+  display: block;
+  font: 700 clamp(40px, 11.5vw, 76px) / 1 var(--cond);
+  letter-spacing: -0.005em;
+}
+.vacio p {
+  margin-top: 14px;
+  max-width: 30em;
+  font: 400 14px/1.45 var(--leg);
+}
+.suma {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 3px solid var(--tinta);
+}
+.suma .importe {
+  flex: none;
+  height: clamp(76px, 15vh, 130px);
+}
+.suma .letra {
+  min-height: 0;
+}
+.volver {
+  flex: none;
+  margin: 0 10px 10px;
+  height: clamp(64px, 10.5vh, 100px);
+  border: 3px solid var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
+  font: 700 clamp(21px, 3.7vh, 36px) / 1 var(--cond);
+  letter-spacing: 0.03em;
+}
+.volver:active {
+  background: var(--papel);
+  color: var(--tinta);
+}
+
 /* ---------- 1 · TECLADO (monto libre) ---------- */
 .teclado {
   flex: none;
@@ -359,6 +551,20 @@ button:focus-visible {
   font: 700 10px/1 var(--leg);
   letter-spacing: 0.14em;
 }
+.tecla.punto {
+  gap: 9px;
+}
+.tecla.punto span {
+  display: block;
+  width: 0.26em;
+  height: 0.26em;
+  margin-top: 0.2em;
+  background: currentColor;
+  font-size: inherit;
+  line-height: 0;
+  overflow: hidden;
+  text-indent: -9em;
+}
 .hoja {
   flex: 1;
   min-width: 0;
@@ -386,6 +592,15 @@ button:focus-visible {
 .info .letra {
   border-bottom: 3px solid var(--tinta);
   min-height: 0;
+}
+.info .entrega {
+  flex: none;
+  padding: 6px 14px;
+  background: var(--tinta);
+  color: var(--papel);
+  font: 700 12px/1.2 var(--leg);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .qr {
   position: relative;
@@ -552,6 +767,34 @@ button:focus-visible {
   justify-content: flex-start;
   overflow: hidden;
   padding-top: 4px;
+}
+.recoge {
+  flex: none;
+  margin-top: 8px;
+  padding: 8px 8px 9px;
+  background: var(--blanco);
+  color: var(--billete);
+  text-align: center;
+  overflow: hidden;
+}
+.recoge span {
+  display: inline-block;
+  white-space: nowrap;
+  font: 700 32px/1 var(--cond);
+  letter-spacing: 0.01em;
+}
+.recoge p {
+  margin-top: 5px;
+  font: 700 clamp(11px, 1.8vh, 14px) / 1.2 var(--leg);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Debajo del bloque blanco el sello no se le encima. */
+.recoge + .c-pie {
+  margin-top: 6px;
+}
+.recoge + .c-pie .sello {
+  margin-top: 0;
 }
 .c-pie {
   flex: none;
@@ -738,13 +981,13 @@ button:focus-visible {
     flex-direction: row;
   }
   .prods {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
-  .prod:nth-child(even) {
+  .prod:nth-child(odd) {
     border-right: 3px solid var(--tinta);
   }
-  .prod:nth-child(3n) {
-    border-right: 0;
+  .aviso-prueba {
+    margin: 12px 22px;
   }
   .lateral {
     width: 44%;
@@ -771,6 +1014,39 @@ button:focus-visible {
   }
   .cobrar {
     margin: 14px;
+  }
+  .tira {
+    height: 52px;
+    padding-left: 22px;
+  }
+  .tira .hoy {
+    padding: 0 22px;
+  }
+  .info .entrega {
+    padding: 8px 22px;
+  }
+  .registro {
+    flex-direction: row;
+  }
+  .fila {
+    padding: 10px 22px;
+    min-height: 84px;
+    gap: 6px 22px;
+  }
+  .vacio {
+    padding: 34px 22px;
+  }
+  .suma {
+    width: 44%;
+    border-top: 0;
+    border-left: 3px solid var(--tinta);
+  }
+  .suma .importe {
+    flex: 1;
+    height: auto;
+  }
+  .volver {
+    margin: 0 14px 14px;
   }
   .teclado {
     width: 44%;

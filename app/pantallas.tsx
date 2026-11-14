@@ -5,17 +5,42 @@
 
 import type { PointerEvent, MouseEvent } from "react";
 import { Ajusta, altoDePantalla, esApaisado, type Calculo } from "./ajusta";
-import { CATEGORIAS, PRODUCTOS, type LineaCobro, type Producto } from "@/lib/catalogo";
+import {
+  CATEGORIAS,
+  OPCIONES_DE_MINUTOS,
+  PRECIOS_DE_PRUEBA,
+  PRODUCTOS,
+  type LineaCobro,
+  type Producto,
+} from "@/lib/catalogo";
 import { importeConLetra, letraCorta, textoDeMonto } from "@/lib/letra";
+import { resumenDeProductos, type ResumenDelDia } from "@/lib/registro";
 
 const dos = (n: number) => (n < 10 ? "0" : "") + n;
 
 const MESES = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
+/** "14:35" en la hora del celular (que es la del mostrador). */
+const horaMin = (milisegundos: number) => {
+  const fecha = new Date(milisegundos);
+  return `${dos(fecha.getHours())}:${dos(fecha.getMinutes())}`;
+};
+
+/** "2026-11-14" → "14 NOV". */
+const fechaCorta = (dia: string) => {
+  const [, mes, numero] = dia.split("-");
+  return `${Number(numero)} ${MESES[Number(mes) - 1] ?? ""}`;
+};
+
+const centavosDe = (pesos: number) => Math.round(pesos * 100);
+
 // Tamaños de los letreros (se miden contra la pantalla, como en la maqueta).
 const calcTitulo: Calculo = (c) => ({ w: c.w * 0.97, h: altoDePantalla() * (esApaisado() ? 0.4 : 0.44) });
+// Con el bloque "REGRESA A LAS…" en pantalla ancha, el letrero cede espacio para que el importe se siga viendo grande.
+const calcTituloConRecoge: Calculo = (c) => ({ w: c.w * 0.97, h: altoDePantalla() * (esApaisado() ? 0.27 : 0.44) });
 const calcNoEntregar: Calculo = (c) => ({ w: c.w, h: altoDePantalla() * 0.085 });
 const calcEspera: Calculo = (c) => ({ w: c.w, h: altoDePantalla() * 0.05 });
+const calcRegresa: Calculo = (c) => ({ w: c.w, h: altoDePantalla() * 0.065 });
 
 function Monto({ texto, golpe = 0 }: { texto: string; golpe?: number }) {
   return (
@@ -26,6 +51,25 @@ function Monto({ texto, golpe = 0 }: { texto: string; golpe?: number }) {
   );
 }
 
+// ---------------------------------------------------------------- la tira de arriba
+
+/** Lo último que selló el banco hoy y cuántos van. Al tocarla se abre el registro. */
+function Tira({ registro, onAbrir }: { registro: ResumenDelDia | null; onAbrir: () => void }) {
+  const ultimo = registro?.cobros[0];
+  return (
+    <button className="tira" type="button" onClick={onAbrir} aria-label="Ver los cobros de hoy">
+      <span className={ultimo ? "ult" : "ult nada"}>
+        {ultimo
+          ? `CAYÓ $${textoDeMonto(centavosDe(ultimo.monto))} · ${horaMin(ultimo.pagadoEn)}`
+          : registro
+            ? "HOY TODAVÍA NO CAE NADA"
+            : "ABRIR COBROS DE HOY"}
+      </span>
+      <span className="hoy">HOY: {registro ? registro.cuantos : "–"}</span>
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------- 0 · mostrador
 
 export function PantallaTienda({
@@ -33,21 +77,29 @@ export function PantallaTienda({
   lineas,
   centavos,
   articulos,
+  minutos,
+  registro,
   onAgregar,
   onQuitar,
   onVaciar,
+  onMinutos,
   onCobrar,
   onOtroMonto,
+  onAbrirRegistro,
 }: {
   carrito: Record<string, number>;
   lineas: LineaCobro[];
   centavos: number;
   articulos: number;
+  minutos: number;
+  registro: ResumenDelDia | null;
   onAgregar: (producto: Producto, tarjeta: HTMLElement | null) => void;
   onQuitar: (producto: Producto) => void;
   onVaciar: () => void;
+  onMinutos: (minutos: number) => void;
   onCobrar: () => void;
   onOtroMonto: () => void;
+  onAbrirRegistro: () => void;
 }) {
   const lista = centavos > 0;
   return (
@@ -57,10 +109,12 @@ export function PantallaTienda({
         <button className="texto-chico" type="button" onClick={onOtroMonto}>
           otro monto
         </button>
-        <span>Mostrador</span>
+        <span>Milpa</span>
       </header>
+      <Tira registro={registro} onAbrir={onAbrirRegistro} />
       <div className="cuerpo">
         <div className="catalogo">
+          {PRECIOS_DE_PRUEBA && <p className="aviso-prueba">Precios de prueba · todo cuesta $0.01</p>}
           {CATEGORIAS.map((categoria) => (
             <section key={categoria.id}>
               <h2 className="seccion">{categoria.titulo}</h2>
@@ -104,7 +158,7 @@ export function PantallaTienda({
         <section className="lateral">
           <div className="importe">
             <span className="rot">
-              Importe{articulos > 0 ? ` · ${articulos} ${articulos === 1 ? "artículo" : "artículos"}` : ""}
+              Importe{articulos > 0 ? ` · ${articulos} ${articulos === 1 ? "platillo" : "platillos"}` : ""}
             </span>
             {articulos > 0 && (
               <button className="texto-chico vaciar" type="button" onClick={onVaciar}>
@@ -113,18 +167,33 @@ export function PantallaTienda({
             )}
             <Monto texto={textoDeMonto(centavos)} />
           </div>
-          <ul className="lineas" aria-label="Lo que lleva la venta">
-            {lineas.length === 0 && <li className="vacia">Toca los productos para agregarlos.</li>}
+          <ul className="lineas" aria-label="Lo que lleva el pedido">
+            {lineas.length === 0 && <li className="vacia">Toca los platillos para agregarlos.</li>}
             {lineas.map((linea) => (
               <li key={linea.id}>
                 <span>
                   {linea.cantidad} × {linea.nombre}
                 </span>
-                <span>${textoDeMonto(Math.round(linea.precio * linea.cantidad * 100))}</span>
+                <span>${textoDeMonto(centavosDe(linea.precio * linea.cantidad))}</span>
               </li>
             ))}
           </ul>
-          <p className="letra">{lista ? `(${importeConLetra(centavos)})` : "(toca los productos)"}</p>
+          <p className="letra">{lista ? `(${importeConLetra(centavos)})` : "(toca los platillos)"}</p>
+          <div className="listo-en" role="group" aria-label="Listo en cuántos minutos después de pagar">
+            <span className="rot">Listo en</span>
+            {OPCIONES_DE_MINUTOS.map((opcion) => (
+              <button
+                key={opcion}
+                className={opcion === minutos ? "chip activo" : "chip"}
+                type="button"
+                aria-pressed={opcion === minutos}
+                onClick={() => onMinutos(opcion)}
+              >
+                {opcion}
+              </button>
+            ))}
+            <span className="rot">min</span>
+          </div>
           <button className={lista ? "cobrar lista" : "cobrar"} type="button" aria-disabled={!lista} onClick={onCobrar}>
             MOSTRAR QR PARA COBRAR
           </button>
@@ -143,21 +212,25 @@ export function PantallaTeclado({
   centavos,
   golpe,
   pisada,
+  registro,
   onTecla,
   onPulsar,
   onCobrar,
   onVolver,
+  onAbrirRegistro,
 }: {
   /** Lo tecleado, ya con comas ("1,500.5"). */
   textoMonto: string;
   centavos: number;
   golpe: number;
   pisada: string | null;
+  registro: ResumenDelDia | null;
   onTecla: (tecla: string) => void;
   /** Se llama al pisar la tecla (antes de soltar), igual que un teclado de caja. */
   onPulsar: (tecla: string) => void;
   onCobrar: () => void;
   onVolver: () => void;
+  onAbrirRegistro: () => void;
 }) {
   const lista = centavos > 0;
   const alPisar = (evento: PointerEvent<HTMLDivElement>) => {
@@ -178,10 +251,11 @@ export function PantallaTeclado({
           <header className="cabeza">
             <b>Sin Tranza</b>
             <button className="texto-chico" type="button" onClick={onVolver}>
-              ← mostrador
+              ← menú
             </button>
             <span>Monto libre</span>
           </header>
+          <Tira registro={registro} onAbrir={onAbrirRegistro} />
           <div className="importe" aria-live="polite">
             <span className="rot">Importe</span>
             <Monto texto={textoMonto} golpe={golpe} />
@@ -193,10 +267,10 @@ export function PantallaTeclado({
             {TECLAS.map((tecla) => (
               <button
                 key={tecla}
-                className={pisada === tecla ? "tecla pisada" : "tecla"}
+                className={`tecla${tecla === "." ? " punto" : ""}${pisada === tecla ? " pisada" : ""}`}
                 type="button"
                 data-t={tecla}
-                aria-label={tecla === "borrar" ? "Borrar" : tecla === "." ? "Punto" : tecla}
+                aria-label={tecla === "borrar" ? "Borrar" : tecla === "." ? "Punto para centavos" : tecla}
               >
                 {tecla === "borrar" ? (
                   <>
@@ -205,6 +279,11 @@ export function PantallaTeclado({
                       <path d="M14.5 6.5l9 9M23.5 6.5l-9 9" fill="none" stroke="currentColor" strokeWidth="3" />
                     </svg>
                     <small>BORRAR</small>
+                  </>
+                ) : tecla === "." ? (
+                  <>
+                    <span aria-hidden="true">.</span>
+                    <small>CENTAVOS</small>
                   </>
                 ) : (
                   tecla
@@ -221,6 +300,84 @@ export function PantallaTeclado({
   );
 }
 
+// ---------------------------------------------------------------- registro del día
+
+export function PantallaRegistro({
+  registro,
+  fallo,
+  nuevas,
+  onVolver,
+}: {
+  registro: ResumenDelDia | null;
+  /** true si no se pudo cargar el registro. */
+  fallo: boolean;
+  /** Referencias que acaban de aparecer (para el golpe de entrada). */
+  nuevas: ReadonlySet<string>;
+  onVolver: () => void;
+}) {
+  const cuantos = registro?.cuantos ?? 0;
+  const suma = registro?.sumaCentavos ?? 0;
+  return (
+    <main className="pantalla registro">
+      <section className="libro">
+        <header className="cabeza">
+          <b>Sin Tranza</b>
+          <span>Cobros de hoy{registro ? ` · ${fechaCorta(registro.dia)}` : ""}</span>
+        </header>
+        <ul className="renglones" aria-label="Cobros de hoy">
+          {!registro && (
+            <li className="vacio">
+              <b>{fallo ? "NO SE PUDO CARGAR." : "CARGANDO…"}</b>
+              {fallo && <p>Revisa tu internet. Se vuelve a intentar solo.</p>}
+            </li>
+          )}
+          {registro && cuantos === 0 && (
+            <li className="vacio">
+              <b>HOY TODAVÍA NO CAE NADA.</b>
+              <p>Aquí se apunta solo lo que el banco ya selló. Lo que te enseñen en una captura no cuenta.</p>
+            </li>
+          )}
+          {registro?.cobros.map((cobro) => {
+            const texto = textoDeMonto(centavosDe(cobro.monto));
+            const detalle = [
+              cobro.recogerEn !== undefined ? `RECOGE ${horaMin(cobro.recogerEn)}` : null,
+              cobro.items && cobro.items.length > 0 ? resumenDeProductos(cobro.items) : "MONTO LIBRE",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <li key={cobro.ref} className={nuevas.has(cobro.ref) ? "fila nueva" : "fila"}>
+                <span className="cuando">
+                  {horaMin(cobro.pagadoEn)}
+                  <small>{cobro.numero !== undefined ? `PEDIDO ${dos(cobro.numero)}` : `NOTA ${cobro.ref}`}</small>
+                </span>
+                <span className="pag">PAGADO</span>
+                <span className={texto.length > 6 ? "cuanto largo" : "cuanto"}>
+                  <span className="peso">$</span>
+                  {texto}
+                </span>
+                <span className="que">{detalle}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+      <section className="suma">
+        <div className="importe">
+          <span className="rot">
+            Suma de hoy · {cuantos} {cuantos === 1 ? "cobro" : "cobros"}
+          </span>
+          <Monto texto={textoDeMonto(suma)} />
+        </div>
+        <p className="letra">({importeConLetra(suma)})</p>
+        <button className="volver" type="button" onClick={onVolver}>
+          VOLVER A COBRAR
+        </button>
+      </section>
+    </main>
+  );
+}
+
 // ---------------------------------------------------------------- 2 · espera
 
 const reloj = (milisegundos: number) => {
@@ -231,6 +388,7 @@ const reloj = (milisegundos: number) => {
 export function PantallaEspera({
   referencia,
   centavos,
+  minutos,
   qrSvg,
   puntos,
   transcurridoMs,
@@ -241,6 +399,8 @@ export function PantallaEspera({
 }: {
   referencia: string | null;
   centavos: number;
+  /** En cuánto estará listo el pedido (undefined en un cobro de monto libre). */
+  minutos?: number;
   /** null mientras Pey todavía hace el QR. */
   qrSvg: string | null;
   puntos: string;
@@ -263,6 +423,7 @@ export function PantallaEspera({
           <Monto texto={textoDeMonto(centavos)} />
         </div>
         <p className="letra">({importeConLetra(centavos)})</p>
+        {minutos !== undefined && <p className="entrega">Listo en {minutos} min después de pagar</p>}
       </section>
 
       <div className={vencido ? "qr vencido" : "qr"} role="img" aria-label="Código QR para pagar con CoDi">
@@ -320,14 +481,13 @@ export function PantallaEspera({
 
 // ---------------------------------------------------------------- 3 · ya cayó
 
-function resumenDeProductos(items: LineaCobro[]): string {
-  return items.map((linea) => `${linea.cantidad} × ${linea.nombre}`).join(" · ");
-}
-
 export function PantallaCayo({
   referencia,
   centavos,
   items,
+  numero,
+  minutos,
+  recogerEn,
   hora,
   selloCae,
   quedan,
@@ -336,6 +496,10 @@ export function PantallaCayo({
   referencia: string;
   centavos: number;
   items?: LineaCobro[];
+  numero?: number;
+  minutos?: number;
+  /** A qué hora debe regresar el cliente (milisegundos). */
+  recogerEn?: number;
   hora: Date;
   selloCae: boolean;
   quedan: number;
@@ -352,7 +516,7 @@ export function PantallaCayo({
         </span>
       </header>
       <h1 className="titulo">
-        <Ajusta className="t-in" calculo={calcTitulo}>
+        <Ajusta className="t-in" calculo={recogerEn !== undefined ? calcTituloConRecoge : calcTitulo}>
           <span>¡YA </span>
           <span>CAYÓ!</span>
         </Ajusta>
@@ -360,6 +524,17 @@ export function PantallaCayo({
       <div className="c-monto">
         <Monto texto={textoDeMonto(centavos)} />
       </div>
+      {recogerEn !== undefined && (
+        <div className="recoge">
+          <Ajusta className="" calculo={calcRegresa}>
+            REGRESA A LAS {horaMin(recogerEn)}
+          </Ajusta>
+          <p>
+            {numero !== undefined ? `Pedido N.º ${dos(numero)} · ` : ""}
+            {minutos !== undefined ? `Listo en ${minutos} min` : ""}
+          </p>
+        </div>
+      )}
       <div className="c-pie">
         <div className="c-col">
           {items && items.length > 0 && <p className="c-items">{resumenDeProductos(items)}</p>}

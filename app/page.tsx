@@ -1,34 +1,71 @@
 "use client";
 
-// El mostrador de la tiendita, de punta a punta:
+// El mostrador de Milpa, de punta a punta:
 //
-//   mostrador (se tocan productos) → QR a pantalla completa → (se pregunta cada
-//   2 s) → ¡YA CAYÓ! en verde, con sonido, voz y vibración.
+//   menú (se tocan platillos y se elige en cuántos minutos estará) → QR a
+//   pantalla completa → (se pregunta cada 2 s) → ¡YA CAYÓ! en verde, con
+//   sonido, voz y vibración, y la hora a la que regresa el cliente por su pedido.
 //
-// Hay también un teclado para cobrar un monto libre.
+// Hay también un teclado para cobrar un monto libre y un registro con los
+// cobros del día (tablero de control).
 //
 // El navegador solo PREGUNTA el estado. Nunca lo cambia: "pagado" lo pone el
-// servidor cuando Pey avisa. Y el total de una venta lo calcula el servidor con
-// su catálogo: aquí solo se manda qué producto y cuántos.
+// servidor cuando Pey avisa. Y el total de un pedido lo calcula el servidor con
+// su catálogo: aquí solo se manda qué platillo, cuántos y en cuántos minutos.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { MAX_CANTIDAD_POR_PRODUCTO, PRODUCTOS, type LineaCobro, type Producto } from "@/lib/catalogo";
+import {
+  MAX_CANTIDAD_POR_PRODUCTO,
+  MINUTOS_POR_OMISION,
+  PRODUCTOS,
+  type LineaCobro,
+  type Producto,
+} from "@/lib/catalogo";
 import { fraseDePago } from "@/lib/letra";
+import type { ResumenDelDia } from "@/lib/registro";
 import { audio, decir, iniciarVoz, prepararVoz, sonarCaja, sonarSelloQR, sonarTecla, sonarTope } from "@/lib/sonido";
-import { PantallaCayo, PantallaEspera, PantallaError, PantallaTeclado, PantallaTienda } from "./pantallas";
+import {
+  PantallaCayo,
+  PantallaEspera,
+  PantallaError,
+  PantallaRegistro,
+  PantallaTeclado,
+  PantallaTienda,
+} from "./pantallas";
 
 type Origen = "tienda" | "teclado";
 
 type Pantalla =
   | { paso: "tienda" }
   | { paso: "teclado" }
-  | { paso: "generando"; centavos: number; volverA: Origen }
-  | { paso: "qr"; ref: string; centavos: number; items?: LineaCobro[]; qrSvg: string; inicio: number; venceLocal: number; volverA: Origen }
-  | { paso: "pagado"; ref: string; centavos: number; items?: LineaCobro[]; pagadoEn: number }
+  | { paso: "registro"; volverA: Origen }
+  | { paso: "generando"; centavos: number; minutos?: number; volverA: Origen }
+  | {
+      paso: "qr";
+      ref: string;
+      centavos: number;
+      items?: LineaCobro[];
+      minutos?: number;
+      qrSvg: string;
+      inicio: number;
+      venceLocal: number;
+      volverA: Origen;
+    }
+  | {
+      paso: "pagado";
+      ref: string;
+      centavos: number;
+      items?: LineaCobro[];
+      numero?: number;
+      minutos?: number;
+      recogerEn?: number;
+      pagadoEn: number;
+    }
   | { paso: "error"; mensaje: string; volverA: Origen };
 
 const CADA_CUANTO_CONSULTAR_MS = 2000;
+const CADA_CUANTO_ACTUALIZAR_REGISTRO_MS = 4000;
 const MAX_ENTEROS = 6;
 const SEGUNDOS_DE_REGRESO = 10;
 const VERDE = "#008A2E";
@@ -66,15 +103,20 @@ function relanzar(elemento: HTMLElement | null, clase: string) {
 export default function Pagina() {
   const [pantalla, setPantalla] = useState<Pantalla>({ paso: "tienda" });
   const [carrito, setCarrito] = useState<Record<string, number>>({});
+  const [minutos, setMinutos] = useState(MINUTOS_POR_OMISION);
   const [texto, setTexto] = useState("");
   const [golpe, setGolpe] = useState(0);
   const [pisada, setPisada] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
   const [selloCae, setSelloCae] = useState(false);
   const [quedan, setQuedan] = useState(SEGUNDOS_DE_REGRESO);
+  const [registro, setRegistro] = useState<ResumenDelDia | null>(null);
+  const [falloRegistro, setFalloRegistro] = useState(false);
+  const [nuevas, setNuevas] = useState<ReadonlySet<string>>(new Set());
   const temporizadorBorrar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refsVistas = useRef<Set<string> | null>(null);
 
-  // ------------------------------------------------------------ lo que lleva la venta
+  // ------------------------------------------------------------ lo que lleva el pedido
   const lineas = useMemo<LineaCobro[]>(
     () =>
       PRODUCTOS.filter((producto) => carrito[producto.id]).map((producto) => ({
@@ -119,6 +161,11 @@ export default function Pagina() {
     setCarrito({});
   }, []);
 
+  const elegirMinutos = useCallback((opcion: number) => {
+    sonarTecla();
+    setMinutos(opcion);
+  }, []);
+
   // ------------------------------------------------------------ teclado de monto libre
   const aplicarTecla = useCallback(
     (tecla: string) => {
@@ -152,48 +199,80 @@ export default function Pagina() {
     [aplicarTecla],
   );
 
-  // ------------------------------------------------------------ pedir el QR
-  const iniciarCobro = useCallback(async (cuerpo: object, centavosPrevios: number, volverA: Origen) => {
-    // El celular solo deja sonar si el audio se activó con un toque.
-    // Se activa aquí para que suene después, cuando caiga el pago.
-    audio();
-    prepararVoz();
-    setPantalla({ paso: "generando", centavos: centavosPrevios, volverA });
+  // ------------------------------------------------------------ registro del día
+  const cargarRegistro = useCallback(async () => {
     try {
-      const respuesta = await fetch("/api/cobros", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cuerpo),
-      });
-      const datos = await respuesta.json().catch(() => ({}));
-      if (!respuesta.ok) {
-        setPantalla({ paso: "error", mensaje: datos.error || "No se pudo generar el QR. Intenta de nuevo.", volverA });
-        return;
-      }
-      const qrSvg = await QRCode.toString(datos.qrString, {
-        type: "svg",
-        errorCorrectionLevel: "M",
-        margin: 2,
-        color: { dark: "#141413", light: PAPEL },
-      });
-      const inicio = Date.now();
-      setAhora(inicio);
-      setPantalla({
-        paso: "qr",
-        ref: datos.ref,
-        centavos: Math.round(Number(datos.monto) * 100),
-        items: datos.items,
-        qrSvg,
-        inicio,
-        // Se cuenta con el reloj del celular, a partir de lo que dura el QR.
-        venceLocal: inicio + (datos.venceEn - datos.creadoEn),
-        volverA,
-      });
-      sonarSelloQR();
+      const respuesta = await fetch("/api/registro", { cache: "no-store" });
+      if (!respuesta.ok) throw new Error(String(respuesta.status));
+      const datos = (await respuesta.json()) as ResumenDelDia;
+      const actuales = new Set(datos.cobros.map((cobro) => cobro.ref));
+      // Lo que apareció desde la última vez entra con golpe (menos en la primera carga).
+      const previas = refsVistas.current;
+      setNuevas(previas ? new Set([...actuales].filter((ref) => !previas.has(ref))) : new Set());
+      refsVistas.current = actuales;
+      setRegistro(datos);
+      setFalloRegistro(false);
     } catch {
-      setPantalla({ paso: "error", mensaje: "No hay conexión. Revisa tu internet e intenta de nuevo.", volverA });
+      setFalloRegistro(true);
     }
   }, []);
+
+  const abrirRegistro = useCallback(
+    (desde: Origen) => {
+      audio();
+      sonarTecla();
+      setPantalla({ paso: "registro", volverA: desde });
+      void cargarRegistro();
+    },
+    [cargarRegistro],
+  );
+
+  // ------------------------------------------------------------ pedir el QR
+  const iniciarCobro = useCallback(
+    async (cuerpo: object, centavosPrevios: number, tiempo: number | undefined, volverA: Origen) => {
+      // El celular solo deja sonar si el audio se activó con un toque.
+      // Se activa aquí para que suene después, cuando caiga el pago.
+      audio();
+      prepararVoz();
+      setPantalla({ paso: "generando", centavos: centavosPrevios, minutos: tiempo, volverA });
+      try {
+        const respuesta = await fetch("/api/cobros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(cuerpo),
+        });
+        const datos = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) {
+          setPantalla({ paso: "error", mensaje: datos.error || "No se pudo generar el QR. Intenta de nuevo.", volverA });
+          return;
+        }
+        const qrSvg = await QRCode.toString(datos.qrString, {
+          type: "svg",
+          errorCorrectionLevel: "M",
+          margin: 2,
+          color: { dark: "#141413", light: PAPEL },
+        });
+        const inicio = Date.now();
+        setAhora(inicio);
+        setPantalla({
+          paso: "qr",
+          ref: datos.ref,
+          centavos: Math.round(Number(datos.monto) * 100),
+          items: datos.items,
+          minutos: datos.minutos,
+          qrSvg,
+          inicio,
+          // Se cuenta con el reloj del celular, a partir de lo que dura el QR.
+          venceLocal: inicio + (datos.venceEn - datos.creadoEn),
+          volverA,
+        });
+        sonarSelloQR();
+      } catch {
+        setPantalla({ paso: "error", mensaje: "No hay conexión. Revisa tu internet e intenta de nuevo.", volverA });
+      }
+    },
+    [],
+  );
 
   const cobrarTienda = useCallback(() => {
     audio();
@@ -201,8 +280,13 @@ export default function Pagina() {
       sonarTope();
       return;
     }
-    void iniciarCobro({ items: lineas.map(({ id, cantidad }) => ({ id, cantidad })) }, centavosCarrito, "tienda");
-  }, [centavosCarrito, lineas, iniciarCobro]);
+    void iniciarCobro(
+      { items: lineas.map(({ id, cantidad }) => ({ id, cantidad })), minutos },
+      centavosCarrito,
+      minutos,
+      "tienda",
+    );
+  }, [centavosCarrito, lineas, minutos, iniciarCobro]);
 
   const cobrarLibre = useCallback(() => {
     audio();
@@ -210,13 +294,19 @@ export default function Pagina() {
       sonarTope();
       return;
     }
-    void iniciarCobro({ monto: texto.replace(/\.$/, "") }, centavosTeclado, "teclado");
+    void iniciarCobro({ monto: texto.replace(/\.$/, "") }, centavosTeclado, undefined, "teclado");
   }, [centavosTeclado, texto, iniciarCobro]);
 
   /** Regresa a donde se estaba (el carrito o el teclado se conservan). */
   const volver = useCallback(() => {
     setPantalla((actual) => ("volverA" in actual ? { paso: actual.volverA } : { paso: "tienda" }));
   }, []);
+
+  const cerrarRegistro = useCallback(() => {
+    audio();
+    sonarTecla();
+    volver();
+  }, [volver]);
 
   /** Después de un pago: mostrador limpio. */
   const nuevoCobro = useCallback(() => {
@@ -254,6 +344,16 @@ export default function Pagina() {
     };
   }, []);
 
+  // El registro se carga al abrir la página y cada vez que se vuelve a ella.
+  useEffect(() => {
+    void cargarRegistro();
+    const alVolver = () => {
+      if (!document.hidden) void cargarRegistro();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+  }, [cargarRegistro]);
+
   // El fondo de toda la página (y la barra del celular) se vuelve verde con el pago.
   const verde = pantalla.paso === "pagado";
   useEffect(() => {
@@ -264,7 +364,7 @@ export default function Pagina() {
   // Teclado de computadora.
   const paso = pantalla.paso;
   useEffect(() => {
-    if (paso !== "teclado" && paso !== "pagado") return;
+    if (paso !== "teclado" && paso !== "pagado" && paso !== "registro") return;
     const alTeclear = (evento: KeyboardEvent) => {
       if (evento.metaKey || evento.ctrlKey || evento.altKey) return;
       audio();
@@ -279,6 +379,11 @@ export default function Pagina() {
           evento.preventDefault();
           cobrarLibre();
         }
+      } else if (paso === "registro") {
+        if (evento.key === "Enter" || evento.key === "Escape" || evento.key === "Backspace") {
+          evento.preventDefault();
+          cerrarRegistro();
+        }
       } else if (evento.key === "Enter" || evento.key === " ") {
         evento.preventDefault();
         nuevoCobro();
@@ -286,7 +391,7 @@ export default function Pagina() {
     };
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
-  }, [paso, aplicarTecla, cobrarLibre, nuevoCobro]);
+  }, [paso, aplicarTecla, cobrarLibre, nuevoCobro, cerrarRegistro]);
 
   // Mientras se hace o se muestra el QR: un reloj para los puntos y la cuenta regresiva.
   const esperando = paso === "generando" || paso === "qr";
@@ -295,6 +400,13 @@ export default function Pagina() {
     const reloj = setInterval(() => setAhora(Date.now()), 330);
     return () => clearInterval(reloj);
   }, [esperando]);
+
+  // Mientras el registro está abierto, se actualiza solo (llegan pagos de otros mostradores).
+  useEffect(() => {
+    if (paso !== "registro") return;
+    const intervalo = setInterval(() => void cargarRegistro(), CADA_CUANTO_ACTUALIZAR_REGISTRO_MS);
+    return () => clearInterval(intervalo);
+  }, [paso, cargarRegistro]);
 
   // Mientras se muestra el QR: preguntar el estado cada 2 segundos.
   const refEnPantalla = pantalla.paso === "qr" ? pantalla.ref : null;
@@ -319,6 +431,9 @@ export default function Pagina() {
                   ref: refEnPantalla,
                   centavos: Math.round(Number(datos.montoPagado ?? datos.monto) * 100),
                   items: datos.items ?? actual.items,
+                  numero: datos.numero,
+                  minutos: datos.minutos ?? actual.minutos,
+                  recogerEn: datos.recogerEn,
                   pagadoEn: Number(datos.pagadoEn) || Date.now(),
                 }
               : actual,
@@ -377,13 +492,14 @@ export default function Pagina() {
     }
     setCarrito({});
     setTexto("");
+    void cargarRegistro(); // el pago recién caído entra al registro y a la tira
     const sello = setTimeout(() => setSelloCae(true), 260); // el sello pega cuando se bota el cajón
     const cuenta = setInterval(() => setQuedan((q) => q - 1), 1000);
     return () => {
       clearTimeout(sello);
       clearInterval(cuenta);
     };
-  }, [refPagado, centavosPagados]);
+  }, [refPagado, centavosPagados, cargarRegistro]);
 
   // A los 10 segundos la pantalla verde regresa sola al mostrador.
   useEffect(() => {
@@ -400,6 +516,9 @@ export default function Pagina() {
           referencia={pantalla.ref}
           centavos={pantalla.centavos}
           items={pantalla.items}
+          numero={pantalla.numero}
+          minutos={pantalla.minutos}
+          recogerEn={pantalla.recogerEn}
           hora={new Date(pantalla.pagadoEn)}
           selloCae={selloCae}
           quedan={quedan}
@@ -411,6 +530,7 @@ export default function Pagina() {
         <PantallaEspera
           referencia={pantalla.ref}
           centavos={pantalla.centavos}
+          minutos={pantalla.minutos}
           qrSvg={pantalla.qrSvg}
           puntos={puntos}
           transcurridoMs={ahora - pantalla.inicio}
@@ -425,6 +545,7 @@ export default function Pagina() {
         <PantallaEspera
           referencia={null}
           centavos={pantalla.centavos}
+          minutos={pantalla.minutos}
           qrSvg={null}
           puntos={puntos}
           transcurridoMs={0}
@@ -435,6 +556,8 @@ export default function Pagina() {
       );
     case "error":
       return <PantallaError mensaje={pantalla.mensaje} onVolver={volver} />;
+    case "registro":
+      return <PantallaRegistro registro={registro} fallo={falloRegistro} nuevas={nuevas} onVolver={cerrarRegistro} />;
     case "teclado":
       return (
         <PantallaTeclado
@@ -442,10 +565,12 @@ export default function Pagina() {
           centavos={centavosTeclado}
           golpe={golpe}
           pisada={pisada}
+          registro={registro}
           onTecla={aplicarTecla}
           onPulsar={pulsarTecla}
           onCobrar={cobrarLibre}
           onVolver={() => setPantalla({ paso: "tienda" })}
+          onAbrirRegistro={() => abrirRegistro("teclado")}
         />
       );
     default:
@@ -455,11 +580,15 @@ export default function Pagina() {
           lineas={lineas}
           centavos={centavosCarrito}
           articulos={articulos}
+          minutos={minutos}
+          registro={registro}
           onAgregar={agregar}
           onQuitar={quitar}
           onVaciar={vaciar}
+          onMinutos={elegirMinutos}
           onCobrar={cobrarTienda}
           onOtroMonto={() => setPantalla({ paso: "teclado" })}
+          onAbrirRegistro={() => abrirRegistro("tienda")}
         />
       );
   }

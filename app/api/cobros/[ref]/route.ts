@@ -26,11 +26,18 @@ export async function GET(_peticion: Request, { params }: { params: Promise<{ re
         estado: cobro.estado,
         monto: cobro.monto,
         items: cobro.items,
+        minutos: cobro.minutos,
         creadoEn: cobro.creadoEn,
         venceEn: cobro.venceEn,
         // Solo vienen cuando ya está pagado:
         montoPagado: cobro.montoPagado,
+        numero: cobro.numero,
         pagadoEn: cobro.pagadoEn,
+        // A qué hora debe regresar el cliente: el pago más los minutos que se le dijeron.
+        recogerEn:
+          cobro.pagadoEn !== undefined && cobro.minutos !== undefined
+            ? cobro.pagadoEn + cobro.minutos * 60_000
+            : undefined,
         avisoEn: cobro.avisoEn,
       },
       { headers: sinCache },

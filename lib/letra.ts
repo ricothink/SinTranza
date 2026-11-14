@@ -61,10 +61,12 @@ export function letraCorta(centavos: number): string {
 export function fraseDePago(centavos: number): string {
   const pesos = Math.floor(centavos / 100);
   const resto = centavos % 100;
-  if (resto === 0) return pesos === 1 ? "Ya cayó un peso" : `Ya cayeron ${palabras(pesos)} pesos`;
   const cent = `${palabras(resto)} ${resto === 1 ? "centavo" : "centavos"}`;
-  if (pesos === 0) return resto === 1 ? `Ya cayó ${cent}` : `Ya cayeron ${cent}`;
-  return `Ya cayeron ${palabras(pesos)} ${pesos === 1 ? "peso" : "pesos"} con ${cent}`;
+  // "Ya cayó un peso", "Ya cayó un centavo", "Ya cayó un peso con cincuenta centavos"; lo demás va en plural.
+  const verbo = pesos === 1 || (pesos === 0 && resto === 1) ? "Ya cayó" : "Ya cayeron";
+  if (resto === 0) return `${verbo} ${palabras(pesos)} ${pesos === 1 ? "peso" : "pesos"}`;
+  if (pesos === 0) return `${verbo} ${cent}`;
+  return `${verbo} ${palabras(pesos)} ${pesos === 1 ? "peso" : "pesos"} con ${cent}`;
 }
 
 /** 123456 → "1,234.56"; 8000 → "80"; 150 → "1.50". Sin el signo de pesos. */

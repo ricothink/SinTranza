@@ -8,6 +8,8 @@
 //   - aviso válido → el cobro pasa a "pagado"
 //   - el mismo aviso reenviado → no se marca dos veces
 //   - el navegador no puede marcar "pagado" por su cuenta
+//   - al pagar se asigna UN número de pedido del día y el cobro entra al registro
+//   - un pedido con minutos queda con su hora de recoger
 //
 // OJO: el aviso válido de esta prueba es SIMULADO (lo firmamos nosotros).
 // No sustituye la prueba con un pago real.
@@ -31,11 +33,11 @@ function revisar(nombre, paso, detalle) {
   console.log(`${paso ? "PASA " : "FALLA"} | ${hora()} | ${nombre} | ${detalle}`);
 }
 
-async function crearCobro() {
+async function crearCobro(cuerpo = { monto: "0.01" }) {
   const r = await fetch(`${base}/api/cobros`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ monto: "0.01" }),
+    body: JSON.stringify(cuerpo),
   });
   const datos = await r.json();
   if (r.status !== 201) throw new Error(`No se pudo crear el cobro: ${r.status} ${JSON.stringify(datos)}`);
@@ -185,6 +187,52 @@ revisar(
     "10 avisos al mismo tiempo sobre un cobro nuevo → solo 1 marca",
     marcados === 1 && repetidos === 9 && rafaga.every((r) => r.json?.resultado === "ya_pagado"),
     `ref=${b.ref}: marcado=${marcados}, ya_pagado=${repetidos}`,
+  );
+  const eb = await estado(b.ref);
+  const regB = (await (await fetch(`${base}/api/registro`, { cache: "no-store" })).json()).cobros.filter((c) => c.ref === b.ref);
+  revisar(
+    "10 avisos al mismo tiempo: un solo número de pedido y una sola fila en el registro",
+    Number.isInteger(eb.numero) && eb.numero !== trasPrimero.numero && regB.length === 1 && regB[0].numero === eb.numero,
+    `numero=${eb.numero}, filas en el registro=${regB.length}`,
+  );
+}
+
+// ---------------------------------------------------------------- número de pedido y registro del día
+{
+  const registro = async () => (await fetch(`${base}/api/registro`, { cache: "no-store" })).json();
+  const reg = await registro();
+  const filaA = reg.cobros.filter((c) => c.ref === a.ref);
+  revisar(
+    "Pedido pagado: número de pedido asignado una sola vez, igual tras los reenvíos",
+    Number.isInteger(trasPrimero.numero) && trasPrimero.numero >= 1 && trasSegundo.numero === trasPrimero.numero && trasTercero.numero === trasPrimero.numero,
+    `numero=${trasPrimero.numero} / ${trasSegundo.numero} / ${trasTercero.numero}`,
+  );
+  revisar(
+    "El registro del día lista el cobro pagado una sola vez, con su monto y su número",
+    filaA.length === 1 && filaA[0].monto === 0.01 && filaA[0].numero === trasPrimero.numero && reg.cuantos === reg.cobros.length,
+    `filas=${filaA.length}, monto=${filaA[0]?.monto}, numero=${filaA[0]?.numero}, dia=${reg.dia}`,
+  );
+  revisar(
+    "La suma del registro cuadra con sus filas (en centavos, exacta)",
+    reg.sumaCentavos === reg.cobros.reduce((suma, c) => suma + Math.round(c.monto * 100), 0),
+    `suma=${reg.sumaCentavos} centavos, cobros=${reg.cuantos}`,
+  );
+
+  // un pedido del menú con hora de entrega
+  const p = await crearCobro({ items: [{ id: "chilaquiles", cantidad: 1 }], minutos: 15 });
+  const cuerpoP = aviso(p.ref, p.codiQrId);
+  const marcaP = await enviar(cuerpoP, cabecerasFirmadas(cuerpoP));
+  const eP = await estado(p.ref);
+  const regP = (await registro()).cobros.find((c) => c.ref === p.ref);
+  revisar(
+    "Pedido con minutos: al pagar queda con su hora de recoger (pago + 15 min) y entra al registro con sus platillos",
+    marcaP.json?.resultado === "marcado" &&
+      eP.minutos === 15 &&
+      eP.recogerEn === eP.pagadoEn + 15 * 60_000 &&
+      eP.numero !== trasPrimero.numero &&
+      regP?.recogerEn === eP.recogerEn &&
+      regP?.items?.[0]?.nombre === "Chilaquiles Verdes o Rojos",
+    `numero=${eP.numero}, recogerEn-pagadoEn=${(eP.recogerEn - eP.pagadoEn) / 60000} min, registro: ${regP?.items?.[0]?.nombre}`,
   );
 }
 
