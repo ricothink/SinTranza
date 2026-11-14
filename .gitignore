@@ -1,0 +1,18 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Llaves: nunca al repo. Solo se sube el ejemplo sin valores.
+# (El orden importa: la excepción de .env.example va al final.)
+.env*
+!.env.example
+
+.vercel
+.DS_Store
+npm-debug.log*
+
+# Archivo local con la llave de Pey: nunca al repo.
+local.env.txt
+*.env.txt
