@@ -11,6 +11,9 @@ next-env.d.ts
 
 .vercel
 .DS_Store
+
+# Material del video de presentación (se trabaja aparte, no es parte de la app).
+video/
 npm-debug.log*
 
 # Archivo local con la llave de Pey: nunca al repo.

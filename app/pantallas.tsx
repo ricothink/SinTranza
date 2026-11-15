@@ -13,7 +13,8 @@ import {
   type LineaCobro,
   type Producto,
 } from "@/lib/catalogo";
-import { dos, fechaCorta, horaMin, MESES, reloj } from "@/lib/hora";
+import { diaDeLaSemana, dos, fechaCorta, horaMin, MESES, reloj } from "@/lib/hora";
+import type { Inteligencia } from "@/lib/inteligencia";
 import { importeConLetra, letraCorta, textoDeMonto } from "@/lib/letra";
 import { NEGOCIO } from "@/lib/negocio";
 import {
@@ -179,7 +180,9 @@ function Tira({ registro, onAbrir }: { registro: ResumenDelDia | null; onAbrir: 
             : "ABRIR COBROS DE HOY"}
       </span>
       {esperando > 0 && <span className="pend">POR COBRAR: {esperando}</span>}
-      <span className="hoy">HOY: {registro ? registro.cuantos : "–"}</span>
+      <span className="hoy">
+        HOY: {registro ? registro.cuantos : "–"} · VER TABLERO <span aria-hidden="true">›</span>
+      </span>
     </button>
   );
 }
@@ -660,7 +663,7 @@ function FilaPagada({ cobro, nueva }: { cobro: CobroRegistrado; nueva: boolean }
           {cobro.numero !== undefined ? `PEDIDO ${dos(cobro.numero)}` : `NOTA ${cobro.ref}`} · {ETIQUETA_DEL_METODO[cobro.metodo]}
         </small>
       </span>
-      <span className="pag">PAGADO</span>
+      {cobro.ejemplo ? <span className="pag ej">EJEMPLO</span> : <span className="pag">PAGADO</span>}
       <span className={texto.length > 6 ? "cuanto largo" : "cuanto"}>
         <span className="peso">$</span>
         {texto}
@@ -714,11 +717,61 @@ function FilaPendiente({ cobro, ahora }: { cobro: CobroPendiente; ahora: number 
   );
 }
 
+/** Las dos caras del tablero. */
+export type VistaDelTablero = "cobros" | "inteligencia";
+
+/** Si el tablero trae ventas de ejemplo y cómo quitarlas o ponerlas (sin `onCambiar` no se pueden quitar: es la demostración). */
+export type Ejemplos = { activos: boolean; cuantos: number; onCambiar?: (activos: boolean) => void };
+
+function Pestanas({ activa, onCambiar }: { activa: VistaDelTablero; onCambiar: (vista: VistaDelTablero) => void }) {
+  const pestana = (vista: VistaDelTablero, rotulo: string) => (
+    <button
+      type="button"
+      className={activa === vista ? "activa" : undefined}
+      aria-current={activa === vista ? "page" : undefined}
+      onClick={() => onCambiar(vista)}
+    >
+      {rotulo}
+    </button>
+  );
+  return (
+    <nav className="pestanas" aria-label="Tablero">
+      {pestana("cobros", "COBROS DE HOY")}
+      {pestana("inteligencia", "INTELIGENCIA")}
+    </nav>
+  );
+}
+
+/** La franja que dice, sin rodeos, si lo que se ve trae ventas de ejemplo. */
+function AvisoEjemplos({ ejemplos }: { ejemplos?: Ejemplos }) {
+  if (!ejemplos) return null;
+  const { activos, cuantos, onCambiar } = ejemplos;
+  return (
+    <p className={activos ? "aviso-ejemplos" : "aviso-ejemplos reales"}>
+      <span>
+        {!onCambiar
+          ? "Vista de demostración · todas las ventas son de ejemplo, no dinero real"
+          : activos
+            ? `Incluye ${cuantos} ${cuantos === 1 ? "venta" : "ventas"} de ejemplo (sello EJEMPLO): no son dinero real`
+            : "Solo cobros reales, sellados por el banco"}
+      </span>
+      {onCambiar && (
+        <button type="button" onClick={() => onCambiar(!activos)}>
+          {activos ? "QUITAR EJEMPLOS" : "VER CON EJEMPLOS"}
+        </button>
+      )}
+    </p>
+  );
+}
+
 export function PantallaRegistro({
   registro,
   fallo,
   nuevas,
   ahora,
+  ejemplos,
+  textoVolver = "VOLVER A COBRAR",
+  onVista,
   onVolver,
   onSalir,
 }: {
@@ -728,22 +781,31 @@ export function PantallaRegistro({
   /** Referencias que acaban de aparecer (para el golpe de entrada). */
   nuevas: ReadonlySet<string>;
   ahora: number;
+  ejemplos?: Ejemplos;
+  textoVolver?: string;
+  onVista: (vista: VistaDelTablero) => void;
   onVolver: () => void;
-  onSalir: () => void;
+  /** Sin esto no sale "cerrar el mostrador" (la demostración no tiene sesión). */
+  onSalir?: () => void;
 }) {
   const cuantos = registro?.cuantos ?? 0;
   const suma = registro?.sumaCentavos ?? 0;
   const pendientes = registro?.pendientes ?? [];
+  const deEjemplo = registro?.cobros.filter((cobro) => cobro.ejemplo).length ?? 0;
   return (
     <main className="pantalla registro">
       <section className="libro">
         <header className="cabeza">
           <b>Sin Tranza</b>
-          <button className="texto-chico" type="button" onClick={onSalir}>
-            cerrar el mostrador
-          </button>
+          {onSalir && (
+            <button className="texto-chico" type="button" onClick={onSalir}>
+              cerrar el mostrador
+            </button>
+          )}
           <span>Cobros de hoy{registro ? ` · ${fechaCorta(registro.dia)}` : ""}</span>
         </header>
+        <Pestanas activa="cobros" onCambiar={onVista} />
+        {registro && <AvisoEjemplos ejemplos={ejemplos} />}
         <ul className="renglones" aria-label="Cobros de hoy">
           {!registro && (
             <li className="vacio">
@@ -775,12 +837,248 @@ export function PantallaRegistro({
         <div className="importe">
           <span className="rot">
             Suma de hoy · {cuantos} {cuantos === 1 ? "cobro" : "cobros"}
+            {deEjemplo > 0 ? ` · ${deEjemplo} de ejemplo` : ""}
           </span>
           <Monto texto={textoDeMonto(suma)} />
         </div>
         <p className="letra">({importeConLetra(suma)})</p>
         <button className="volver" type="button" onClick={onVolver}>
-          VOLVER A COBRAR
+          {textoVolver}
+        </button>
+      </section>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------- inteligencia de negocio
+
+const NOMBRE_DEL_METODO: Record<MetodoDeCobro, string> = {
+  qr: "QR aquí",
+  push: "A su celular",
+  link: "Enlace de pago",
+};
+// Cada forma de pago tiene su color fijo (y siempre su nombre al lado: el color nunca va solo).
+const TONO_DEL_METODO: Record<MetodoDeCobro, "verde" | "anil" | "naranja"> = {
+  qr: "verde",
+  push: "anil",
+  link: "naranja",
+};
+
+/** "$18,450" cuando ya son cientos de pesos; con centavos cuando es poco (los cobros de prueba de un centavo). */
+const enPesos = (centavos: number) =>
+  centavos >= 100_00 ? Math.round(centavos / 100).toLocaleString("es-MX") : textoDeMonto(centavos);
+
+function Cifra({ rotulo, valor, nota, tono }: { rotulo: string; valor: string; nota?: string; tono?: "verde" | "maiz" }) {
+  return (
+    <div className={tono ? `cifra ${tono}` : "cifra"}>
+      <span className="rot">{rotulo}</span>
+      <b>{valor}</b>
+      {nota && <small>{nota}</small>}
+    </div>
+  );
+}
+
+/** Alto, en pixeles, de la barra más alta de una gráfica. */
+const ALTO_DE_BARRA = 120;
+
+/**
+ * Barras de pie: una por hora o por día, en verde (es dinero). La que importa
+ * (la hora pico, el día de hoy) va en tinta y lleva su cifra arriba; con
+ * `conCifras` la llevan todas. El detalle completo sale al dejar el cursor.
+ */
+function Barras({
+  casillas,
+  descripcion,
+  conCifras = false,
+}: {
+  casillas: Array<{ clave: string; pie: string; centavos: number; cuantos: number; detalle: string; marcada?: boolean }>;
+  descripcion: string;
+  conCifras?: boolean;
+}) {
+  const tope = Math.max(1, ...casillas.map((casilla) => casilla.centavos));
+  return (
+    <div className="barras" role="img" aria-label={descripcion}>
+      {casillas.map((casilla) => {
+        const alto = casilla.centavos > 0 ? Math.max(2, Math.round((casilla.centavos / tope) * ALTO_DE_BARRA)) : 0;
+        return (
+          <div
+            key={casilla.clave}
+            className="barra"
+            title={`${casilla.detalle} · $${enPesos(casilla.centavos)} · ${casilla.cuantos} ${casilla.cuantos === 1 ? "cobro" : "cobros"}`}
+          >
+            <span className="valor">
+              {(conCifras || casilla.marcada) && casilla.centavos > 0 ? `$${enPesos(casilla.centavos)}` : ""}
+            </span>
+            <i className={casilla.marcada ? "marcada" : undefined} style={{ height: `${alto}px` }} />
+            <small>{casilla.pie}</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Barras acostadas con su nombre y su cifra al lado (cómo pagan, qué se vende). */
+function Tramos({
+  filas,
+}: {
+  filas: Array<{ nombre: string; parte: number; cifra: string; tono?: "verde" | "anil" | "naranja" }>;
+}) {
+  return (
+    <ul className="tramos">
+      {filas.map((fila) => (
+        <li key={fila.nombre}>
+          <span className="nombre">{fila.nombre}</span>
+          <span className="pista">
+            <i className={fila.tono} style={{ width: `${Math.max(0, Math.min(1, fila.parte)) * 100}%` }} />
+          </span>
+          <b>{fila.cifra}</b>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function PantallaInteligencia({
+  datos,
+  dia,
+  ejemplos,
+  textoVolver = "VOLVER A COBRAR",
+  onVista,
+  onVolver,
+  onSalir,
+}: {
+  /** null mientras carga el registro. */
+  datos: Inteligencia | null;
+  dia?: string;
+  ejemplos?: Ejemplos;
+  textoVolver?: string;
+  onVista: (vista: VistaDelTablero) => void;
+  onVolver: () => void;
+  onSalir?: () => void;
+}) {
+  const contraAyer =
+    datos && datos.ayerALaMismaHora !== null && datos.ayerALaMismaHora > 0
+      ? Math.round(((datos.centavos - datos.ayerALaMismaHora) / datos.ayerALaMismaHora) * 100)
+      : null;
+  const topePiezas = datos ? Math.max(1, ...datos.top.map((platillo) => platillo.piezas)) : 1;
+  return (
+    <main className="pantalla registro de-intel">
+      <section className="libro">
+        <header className="cabeza">
+          <b>Sin Tranza</b>
+          {onSalir && (
+            <button className="texto-chico" type="button" onClick={onSalir}>
+              cerrar el mostrador
+            </button>
+          )}
+          <span>Inteligencia{dia ? ` · ${fechaCorta(dia)}` : ""}</span>
+        </header>
+        <Pestanas activa="inteligencia" onCambiar={onVista} />
+        {datos && <AvisoEjemplos ejemplos={ejemplos} />}
+        <div className="renglones intel">
+          {!datos && (
+            <div className="vacio">
+              <b>CARGANDO…</b>
+            </div>
+          )}
+          {datos && (
+            <>
+              <div className="cifras">
+                <Cifra
+                  tono="verde"
+                  rotulo="Venta de hoy"
+                  valor={`$${enPesos(datos.centavos)}`}
+                  nota={
+                    contraAyer === null
+                      ? undefined
+                      : `${contraAyer >= 0 ? "+" : "−"}${Math.abs(contraAyer)}% contra ayer a esta hora`
+                  }
+                />
+                <Cifra
+                  rotulo="Cobros sellados"
+                  valor={String(datos.cuantos)}
+                  nota={datos.piezas > 0 ? `${datos.piezas} platillos y bebidas` : undefined}
+                />
+                <Cifra rotulo="Ticket promedio" valor={`$${enPesos(datos.ticketCentavos)}`} nota="por cobro" />
+                <Cifra
+                  tono="maiz"
+                  rotulo="Hora pico"
+                  valor={datos.horaPico !== null ? `${dos(datos.horaPico)}:00` : "–"}
+                  nota={datos.horaPico !== null ? "la hora que más vende" : "todavía no cae nada"}
+                />
+              </div>
+
+              <div className="graficas">
+              <section className="grafica">
+                <h2 className="seccion">Ventas por hora · hoy (en negro, la hora pico)</h2>
+                <Barras
+                  descripcion="Ventas de hoy por hora"
+                  casillas={datos.porHora.map((casilla) => ({
+                    clave: String(casilla.hora),
+                    pie: String(casilla.hora),
+                    centavos: casilla.centavos,
+                    cuantos: casilla.cuantos,
+                    detalle: `${dos(casilla.hora)}:00 a ${dos(casilla.hora)}:59`,
+                    marcada: casilla.hora === datos.horaPico,
+                  }))}
+                />
+              </section>
+
+              <section className="grafica">
+                <h2 className="seccion">
+                  {datos.porDia.length > 1 ? `Últimos ${datos.porDia.length} días (en negro, hoy)` : "Venta del día"}
+                </h2>
+                <Barras
+                  conCifras
+                  descripcion="Venta de cada día"
+                  casillas={datos.porDia.map((casilla) => ({
+                    clave: casilla.dia,
+                    pie: casilla.esHoy ? "HOY" : diaDeLaSemana(casilla.dia),
+                    centavos: casilla.centavos,
+                    cuantos: casilla.cuantos,
+                    detalle: fechaCorta(casilla.dia),
+                    marcada: casilla.esHoy,
+                  }))}
+                />
+                {datos.porDia.length > 1 && <p className="pie-grafica">Hoy va a medias: el día todavía no cierra.</p>}
+              </section>
+
+              <section className="grafica">
+                <h2 className="seccion">Cómo pagan</h2>
+                <Tramos
+                  filas={datos.porMetodo.map((metodo) => ({
+                    nombre: NOMBRE_DEL_METODO[metodo.metodo],
+                    tono: TONO_DEL_METODO[metodo.metodo],
+                    parte: datos.cuantos > 0 ? metodo.cuantos / datos.cuantos : 0,
+                    cifra: `${datos.cuantos > 0 ? Math.round((metodo.cuantos / datos.cuantos) * 100) : 0}% · ${metodo.cuantos}`,
+                  }))}
+                />
+              </section>
+
+              <section className="grafica">
+                <h2 className="seccion">Lo que más se vende hoy</h2>
+                {datos.top.length > 0 ? (
+                  <Tramos
+                    filas={datos.top.map((platillo) => ({
+                      nombre: platillo.nombre,
+                      tono: "anil" as const,
+                      parte: platillo.piezas / topePiezas,
+                      cifra: `${platillo.piezas} · $${enPesos(platillo.centavos)}`,
+                    }))}
+                  />
+                ) : (
+                  <p className="pie-grafica">Todavía no hay platillos vendidos hoy.</p>
+                )}
+              </section>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+      <section className="suma">
+        <button className="volver" type="button" onClick={onVolver}>
+          {textoVolver}
         </button>
       </section>
     </main>

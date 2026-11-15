@@ -22,6 +22,12 @@ export type CobroRegistrado = {
   items?: LineaCobro[];
   /** Celular del cliente (10 dígitos), si quien atiende lo tecleó. Para mandarle la confirmación por WhatsApp. */
   telefono?: string;
+  /**
+   * true si es una venta de EJEMPLO (lib/demo.ts): se fabrica en pantalla para
+   * la demostración, nunca se guarda y nunca sale del servidor. Un cobro real
+   * jamás lleva esta marca.
+   */
+  ejemplo?: true;
 };
 
 /** Un cobro a distancia que sigue esperando el pago. */

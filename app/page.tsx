@@ -24,11 +24,16 @@ import {
   type LineaCobro,
   type Producto,
 } from "@/lib/catalogo";
+import { ejemplosDeDiasAnteriores, registroConEjemplos } from "@/lib/demo";
+import { diaDeMexico } from "@/lib/hora";
+import { calcularInteligencia } from "@/lib/inteligencia";
 import { fraseDePago } from "@/lib/letra";
 import type { CobroRegistrado, MetodoDeCobro, ResumenDelDia } from "@/lib/registro";
 import { audio, decir, iniciarVoz, prepararVoz, sonarCaja, sonarSelloQR, sonarTecla, sonarTope } from "@/lib/sonido";
 import { mensajeDeConfirmacion } from "@/lib/whatsapp";
 import {
+  PantallaInteligencia,
+  type VistaDelTablero,
   PantallaCayo,
   PantallaCelular,
   PantallaEspera,
@@ -63,6 +68,7 @@ type Pantalla =
   | { paso: "metodo"; origen: Origen }
   | { paso: "celular"; modo: "push" | "link"; origen: Origen }
   | { paso: "registro"; origen: Origen }
+  | { paso: "inteligencia"; origen: Origen }
   | { paso: "generando"; centavos: number; minutos?: number; queHace: string; origen: Origen }
   | {
       paso: "qr";
@@ -140,6 +146,8 @@ export default function Pagina() {
   const [registro, setRegistro] = useState<ResumenDelDia | null>(null);
   const [falloRegistro, setFalloRegistro] = useState(false);
   const [nuevas, setNuevas] = useState<ReadonlySet<string>>(new Set());
+  /** Si el tablero y la inteligencia intercalan ventas de ejemplo (lib/demo.ts). Lo real nunca cambia. */
+  const [conEjemplos, setConEjemplos] = useState(true);
 
   const temporizadorBorrar = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refsVistas = useRef<Set<string> | null>(null);
@@ -315,10 +323,64 @@ export default function Pagina() {
     (origen: Origen) => {
       audio();
       sonarTecla();
+      setAhora(Date.now());
       setPantalla({ paso: "registro", origen });
       void cargarRegistro(true);
     },
     [cargarRegistro],
+  );
+
+  /** Cambia entre las dos caras del tablero: los cobros de hoy y la inteligencia. */
+  const cambiarVista = useCallback((vista: VistaDelTablero) => {
+    sonarTecla();
+    setPantalla((actual) =>
+      "origen" in actual ? { paso: vista === "cobros" ? "registro" : "inteligencia", origen: actual.origen } : actual,
+    );
+  }, []);
+
+  // Las ventas de ejemplo se pueden quitar; la elección se recuerda en este aparato.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem("sin-tranza:ejemplos") === "no") setConEjemplos(false);
+    } catch {
+      // Sin almacenamiento del navegador simplemente no se recuerda.
+    }
+  }, []);
+  const elegirEjemplos = useCallback((activos: boolean) => {
+    sonarTecla();
+    setConEjemplos(activos);
+    try {
+      window.localStorage.setItem("sin-tranza:ejemplos", activos ? "si" : "no");
+    } catch {
+      // Igual: no se recuerda, pero funciona.
+    }
+  }, []);
+
+  // Lo que se ve en el tablero: lo real, con las ventas de ejemplo intercaladas si están puestas.
+  // Se recalcula una vez por minuto (las de ejemplo van "cayendo" con el reloj). La tira del
+  // mostrador y la pantalla verde siguen leyendo SOLO el registro real.
+  const minuto = Math.floor(ahora / 60_000);
+  const registroVisible = useMemo(
+    () => (registro && conEjemplos ? registroConEjemplos(registro, minuto * 60_000) : registro),
+    [registro, conEjemplos, minuto],
+  );
+  const inteligencia = useMemo(() => {
+    if (!registroVisible) return null;
+    const instante = minuto * 60_000;
+    return calcularInteligencia(
+      registroVisible.cobros,
+      conEjemplos ? ejemplosDeDiasAnteriores(instante) : [],
+      diaDeMexico(instante),
+      instante,
+    );
+  }, [registroVisible, conEjemplos, minuto]);
+  const ejemplos = useMemo(
+    () => ({
+      activos: conEjemplos,
+      cuantos: registroVisible?.cobros.filter((cobro) => cobro.ejemplo).length ?? 0,
+      onCambiar: elegirEjemplos,
+    }),
+    [conEjemplos, registroVisible, elegirEjemplos],
   );
 
   const entrarConPin = useCallback(async () => {
@@ -660,7 +722,7 @@ export default function Pagina() {
         if (digito) teclaCelular(k);
         else if (k === "Backspace" || k === "Delete") teclaCelular("borrar");
         else return;
-      } else if (paso === "registro") {
+      } else if (paso === "registro" || paso === "inteligencia") {
         if (k === "Enter" || k === "Escape" || k === "Backspace") cerrarRegistro();
         else return;
       } else if (paso === "pagado") {
@@ -674,7 +736,8 @@ export default function Pagina() {
   }, [sesion, paso, teclaPin, entrarConPin, aplicarTecla, cobrarLibre, teclaCelular, cerrarRegistro, nuevoCobro]);
 
   // Mientras se espera algo (QR, solicitud, registro abierto): un reloj para los puntos y las cuentas regresivas.
-  const conReloj = paso === "generando" || paso === "qr" || paso === "remota" || paso === "registro";
+  const enTablero = paso === "registro" || paso === "inteligencia";
+  const conReloj = paso === "generando" || paso === "qr" || paso === "remota" || enTablero;
   useEffect(() => {
     if (!conReloj) return;
     const reloj = setInterval(() => setAhora(Date.now()), 330);
@@ -682,7 +745,7 @@ export default function Pagina() {
   }, [conReloj]);
 
   // El registro se actualiza solo: rápido si hay cobros a distancia esperando, tranquilo si no.
-  const hayPendientes = (registro?.pendientes.length ?? 0) > 0 || paso === "remota" || paso === "registro";
+  const hayPendientes = (registro?.pendientes.length ?? 0) > 0 || paso === "remota" || enTablero;
   useEffect(() => {
     if (sesion !== "si") return;
     const ms = hayPendientes ? CADA_CUANTO_REGISTRO_CON_PENDIENTES_MS : CADA_CUANTO_REGISTRO_EN_CALMA_MS;
@@ -891,10 +954,23 @@ export default function Pagina() {
     case "registro":
       return (
         <PantallaRegistro
-          registro={registro}
+          registro={registroVisible}
           fallo={falloRegistro}
           nuevas={nuevas}
           ahora={ahora}
+          ejemplos={ejemplos}
+          onVista={cambiarVista}
+          onVolver={cerrarRegistro}
+          onSalir={() => void salir()}
+        />
+      );
+    case "inteligencia":
+      return (
+        <PantallaInteligencia
+          datos={inteligencia}
+          dia={registroVisible?.dia}
+          ejemplos={ejemplos}
+          onVista={cambiarVista}
           onVolver={cerrarRegistro}
           onSalir={() => void salir()}
         />

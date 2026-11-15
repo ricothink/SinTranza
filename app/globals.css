@@ -1340,3 +1340,297 @@ button:focus-visible {
     padding: 0 22px;
   }
 }
+
+/* ---------- TABLERO: pestañas, aviso de ventas de ejemplo e inteligencia ---------- */
+.pestanas {
+  flex: none;
+  display: flex;
+  border-bottom: 3px solid var(--tinta);
+}
+.pestanas button {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  font: 700 clamp(15px, 2.6vh, 20px) / 1 var(--cond);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.pestanas button + button {
+  border-left: 3px solid var(--tinta);
+}
+.pestanas .activa,
+.pestanas button:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+.aviso-ejemplos {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 14px;
+  border-bottom: 3px dashed var(--tinta);
+  font: 700 11px/1.3 var(--leg);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.aviso-ejemplos.reales {
+  border-bottom-style: solid;
+}
+.aviso-ejemplos button {
+  flex: none;
+  padding: 8px 10px;
+  border: 3px solid var(--tinta);
+  font: 700 11px/1 var(--leg);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+.aviso-ejemplos button:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+/* El sello EJEMPLO no es el sello del banco: punteado y derecho. */
+.fila .pag.ej {
+  border-style: dashed;
+  transform: none;
+}
+
+.registro.de-intel {
+  flex-direction: column;
+}
+.de-intel .volver {
+  margin-top: 10px;
+}
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 3px solid var(--tinta);
+}
+.cifra {
+  min-width: 0;
+  padding: 10px 14px 12px;
+  border-right: 3px solid var(--tinta);
+  border-bottom: 3px solid var(--tinta);
+}
+.cifra:nth-child(2n) {
+  border-right: 0;
+}
+.cifra:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.cifra b {
+  display: block;
+  margin-top: 7px;
+  font: 700 clamp(34px, 9vw, 56px) / 1 var(--cond);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cifra small {
+  display: block;
+  margin-top: 6px;
+  font: 400 12px/1.3 var(--leg);
+}
+.grafica {
+  min-width: 0;
+  border-bottom: 3px solid var(--tinta);
+}
+.barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 16px 14px 12px;
+}
+.barra {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.barra .valor {
+  min-height: 12px;
+  margin-bottom: 4px;
+  font: 700 12px/1 var(--cond);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.barra i {
+  display: block;
+  width: 100%;
+  background: var(--tinta);
+}
+.barra i.verde {
+  background: var(--billete);
+}
+.barra small {
+  width: 100%;
+  margin-top: 0;
+  padding-top: 6px;
+  border-top: 3px solid var(--tinta);
+  text-align: center;
+  font: 700 10px/1 var(--leg);
+  letter-spacing: 0.04em;
+}
+.tramos {
+  list-style: none;
+  padding: 6px 14px 8px;
+}
+.tramos li {
+  display: grid;
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--tinta);
+}
+.tramos li:last-child {
+  border-bottom: 0;
+}
+.tramos .nombre {
+  font: 700 12px/1.25 var(--leg);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.tramos .pista {
+  display: block;
+  height: 16px;
+  border-left: 3px solid var(--tinta);
+}
+.tramos .pista i {
+  display: block;
+  height: 100%;
+  background: var(--tinta);
+}
+.tramos b {
+  min-width: 5.2em;
+  text-align: right;
+  font: 700 15px/1 var(--cond);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pie-grafica {
+  padding: 0 14px 12px;
+  font: 400 12px/1.4 var(--leg);
+}
+
+@media (min-aspect-ratio: 1/1) {
+  .registro.de-intel {
+    flex-direction: column;
+  }
+  .de-intel .suma {
+    width: auto;
+    border-left: 0;
+    border-top: 3px solid var(--tinta);
+  }
+  .de-intel .volver {
+    height: clamp(52px, 8vh, 72px);
+    margin: 10px 14px;
+  }
+  .pestanas button,
+  .aviso-ejemplos {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .cifras {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .cifra,
+  .cifra:nth-child(2n) {
+    padding: 14px 22px 16px;
+    border-right: 3px solid var(--tinta);
+    border-bottom: 0;
+  }
+  .cifra:last-child {
+    border-right: 0;
+  }
+  .cifra b {
+    font-size: clamp(40px, 5vw, 68px);
+  }
+  .graficas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .graficas .grafica:nth-child(odd) {
+    border-right: 3px solid var(--tinta);
+  }
+  .barras,
+  .tramos {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+  .pie-grafica {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+}
+
+/* ---------- COLOR del tablero: verde = dinero, maíz = ojo, añil y naranja = formas de pago ---------- */
+:root {
+  --maiz: #f2b01e;
+  --anil: #2456c9;
+  --naranja: #d9480f;
+}
+/* El botón del tablero en la tira: verde, para que se vea que se toca. */
+.tira .hoy {
+  background: var(--billete);
+  color: var(--blanco);
+}
+.tira:active .hoy {
+  background: var(--tinta);
+  color: var(--papel);
+}
+.pestanas .activa {
+  background: var(--billete);
+  color: var(--blanco);
+}
+.pestanas button:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+/* El aviso de ventas de ejemplo va en maíz: es un "ojo", no un adorno. */
+.aviso-ejemplos {
+  background: var(--maiz);
+  border-bottom-style: solid;
+}
+.aviso-ejemplos.reales {
+  background: var(--blanco);
+}
+.aviso-ejemplos button {
+  background: var(--papel);
+}
+/* El sello del banco es verde; el de ejemplo se queda punteado y en tinta. */
+.fila:not(.falta) .pag:not(.ej) {
+  border-color: var(--billete);
+  color: var(--billete);
+}
+.de-intel .seccion {
+  background: var(--blanco);
+  color: var(--tinta);
+  border-bottom: 3px solid var(--tinta);
+}
+.cifra {
+  background: var(--blanco);
+}
+.cifra.verde {
+  background: var(--billete);
+  color: var(--blanco);
+}
+.cifra.maiz {
+  background: var(--maiz);
+}
+.barra i {
+  background: var(--billete);
+}
+.barra i.marcada {
+  background: var(--tinta);
+}
+.tramos .pista i.verde {
+  background: var(--billete);
+}
+.tramos .pista i.anil {
+  background: var(--anil);
+}
+.tramos .pista i.naranja {
+  background: var(--naranja);
+}

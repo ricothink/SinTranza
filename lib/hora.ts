@@ -19,6 +19,30 @@ export const fechaCorta = (dia: string) => {
   return `${Number(numero)} ${MESES[Number(mes) - 1] ?? ""}`;
 };
 
+// ---------------------------------------------------------------- hora de la Ciudad de México
+// Para agrupar ventas por día y por hora sin depender del reloj del aparato.
+// La Ciudad de México va 6 horas detrás de la hora universal todo el año (sin
+// horario de verano desde 2022).
+
+const HORA_MS = 3_600_000;
+const DIA_MS = 24 * HORA_MS;
+const DESFASE_MX = 6 * HORA_MS;
+
+/** El instante en que empezó ese día en la Ciudad de México. */
+export const inicioDelDiaMx = (milisegundos: number) =>
+  Math.floor((milisegundos - DESFASE_MX) / DIA_MS) * DIA_MS + DESFASE_MX;
+
+/** "2026-11-15" en la Ciudad de México. */
+export const diaDeMexico = (milisegundos: number) => new Date(milisegundos - DESFASE_MX).toISOString().slice(0, 10);
+
+/** La hora del día (0 a 23) en la Ciudad de México. */
+export const horaDeMexico = (milisegundos: number) => new Date(milisegundos - DESFASE_MX).getUTCHours();
+
+const DIAS_CORTOS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
+
+/** "2026-11-15" → "DOM". */
+export const diaDeLaSemana = (dia: string) => DIAS_CORTOS[new Date(`${dia}T00:00:00Z`).getUTCDay()] ?? "";
+
 /** "0:42" o "29:58" */
 export const reloj = (milisegundos: number) => {
   const segundos = Math.max(0, Math.ceil(milisegundos / 1000));

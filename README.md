@@ -16,6 +16,17 @@ Los cobros a distancia quedan **por cobrar**: el mostrador sigue atendiendo y, c
 
 El diseño (nota de remisión: papel, tinta y verde; golpes secos, sin sombras) viene de la maqueta `sin-tranza.html` de Ricardo.
 
+## Tablero, inteligencia y vista de demostración
+
+**Para verla sin PIN: https://ya-cayo.vercel.app/demo** (el tablero y la inteligencia, solo con ventas de ejemplo).
+
+En el mostrador, la franja de arriba trae el botón **VER TABLERO ›**. El tablero tiene dos pestañas:
+
+- **Cobros de hoy**: lo que el banco ya selló y lo que sigue por cobrar.
+- **Inteligencia**: venta del día, cobros, ticket promedio, hora pico, ventas por hora, últimos 7 días, cómo pagan (QR / celular / enlace) y lo que más se vende.
+
+**Ventas de ejemplo.** Para que el tablero no se vea vacío en una demostración, se pueden intercalar ventas de ejemplo (botón QUITAR EJEMPLOS / VER CON EJEMPLOS; se recuerda en el aparato). Se fabrican en la pantalla (`lib/demo.ts`): **nunca se guardan, nunca pasan por el servidor y nunca tocan el almacén de cobros.** Llevan sello punteado **EJEMPLO** (no el sello PAGADO), la suma dice cuántas son de ejemplo y usan los precios de la hoja del menú. La franja del mostrador y la pantalla verde siguen leyendo solo cobros reales. La regla de oro no cambia: "pagado" solo lo pone el aviso firmado de Pey.
+
 ## PIN del mostrador
 
 Todo lo del mostrador (crear cobros, ver el registro, mandar solicitudes al celular) exige entrar con el PIN. Si faltan `PIN_MOSTRADOR` o `SESION_SECRETO` la app queda **cerrada**, nunca abierta. La sesión es una cookie firmada que dura 12 horas; 5 PIN equivocados seguidos desde una misma dirección la bloquean 10 minutos (ni el PIN correcto entra mientras dure). Lo único público es el aviso de Pey (lleva su propia firma) y la página de seguimiento del cliente (lleva su propio código secreto en la dirección).
@@ -55,6 +66,9 @@ El celular del cliente se guarda junto al cobro (mismo tiempo de vida: 24 horas,
 | `lib/cobros.ts` | Almacén de cobros. Única función que marca "pagado": `marcarPagado` (también asigna el número de pedido, llena el índice del día y actualiza los pendientes). |
 | `lib/sesion.ts` | PIN del mostrador y sesión firmada. |
 | `lib/registro.ts` | Tipos del registro del día. |
+| `lib/demo.ts` | Ventas de ejemplo (solo en pantalla, nunca en el almacén). |
+| `lib/inteligencia.ts` | Las cuentas de la pantalla de inteligencia. |
+| `app/demo/page.tsx` | Vista pública de demostración, sin PIN y sin datos reales. |
 | `lib/negocio.ts`, `lib/whatsapp.ts`, `lib/hora.ts` | Datos de Milpa, mensajes de WhatsApp y formato de horas. |
 | `lib/letra.ts` | Importe con letra ("quince pesos 50/100 M.N.") y la frase que dice la voz. |
 | `lib/sonido.ts` | Clics, golpe del QR, caja registradora y voz: todo sintetizado, sin archivos de audio. |
