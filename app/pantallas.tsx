@@ -127,6 +127,7 @@ export function PantallaPin({
   onTecla,
   onPulsar,
   onEntrar,
+  onSeguirSinPin,
 }: {
   digitos: number;
   /** Lo que se le dice a quien teclea (error, bloqueo, falta de configuración). */
@@ -136,6 +137,8 @@ export function PantallaPin({
   onTecla: (tecla: string) => void;
   onPulsar: (tecla: string) => void;
   onEntrar: () => void;
+  /** Con el mostrador abierto: regresar a cobrar sin PIN. */
+  onSeguirSinPin?: () => void;
 }) {
   return (
     <main className="pantalla tienda teclado-pantalla">
@@ -143,7 +146,12 @@ export function PantallaPin({
         <section className="hoja">
           <header className="cabeza">
             <b>Sin Tranza</b>
-            <span>Mostrador cerrado</span>
+            {onSeguirSinPin && (
+              <button className="texto-chico" type="button" onClick={onSeguirSinPin}>
+                seguir sin PIN
+              </button>
+            )}
+            <span>{onSeguirSinPin ? "Entrar como personal" : "Mostrador cerrado"}</span>
           </header>
           <div className="importe" aria-live="polite">
             <span className="rot">PIN del mostrador</span>
@@ -203,7 +211,10 @@ export function PantallaTienda({
   onCobrar,
   onOtroMonto,
   onAbrirRegistro,
+  invitado = false,
 }: {
+  /** true si entró sin PIN (mostrador abierto para evaluación). */
+  invitado?: boolean;
   carrito: Record<string, number>;
   lineas: LineaCobro[];
   centavos: number;
@@ -231,7 +242,13 @@ export function PantallaTienda({
       <Tira registro={registro} onAbrir={onAbrirRegistro} />
       <div className="cuerpo">
         <div className="catalogo">
-          {PRECIOS_DE_PRUEBA && <p className="aviso-prueba">Precios de prueba · todo cuesta $0.01</p>}
+          {PRECIOS_DE_PRUEBA && (
+            <p className="aviso-prueba">
+              {invitado
+                ? "Mostrador abierto para evaluación · no necesitas PIN · cada cobro es real y cuesta $0.01"
+                : "Precios de prueba · todo cuesta $0.01"}
+            </p>
+          )}
           {CATEGORIAS.map((categoria) => (
             <section key={categoria.id}>
               <h2 className="seccion">{categoria.titulo}</h2>
@@ -771,10 +788,13 @@ export function PantallaRegistro({
   ahora,
   ejemplos,
   textoVolver = "VOLVER A COBRAR",
+  textoSalir = "cerrar el mostrador",
   onVista,
   onVolver,
   onSalir,
 }: {
+  /** Lo que dice el botón chico de arriba ("cerrar el mostrador", o "entrar con PIN" para un invitado). */
+  textoSalir?: string;
   registro: ResumenDelDia | null;
   /** true si no se pudo cargar el registro. */
   fallo: boolean;
@@ -799,7 +819,7 @@ export function PantallaRegistro({
           <b>Sin Tranza</b>
           {onSalir && (
             <button className="texto-chico" type="button" onClick={onSalir}>
-              cerrar el mostrador
+              {textoSalir}
             </button>
           )}
           <span>Cobros de hoy{registro ? ` · ${fechaCorta(registro.dia)}` : ""}</span>
@@ -944,10 +964,12 @@ export function PantallaInteligencia({
   dia,
   ejemplos,
   textoVolver = "VOLVER A COBRAR",
+  textoSalir = "cerrar el mostrador",
   onVista,
   onVolver,
   onSalir,
 }: {
+  textoSalir?: string;
   /** null mientras carga el registro. */
   datos: Inteligencia | null;
   dia?: string;
@@ -969,7 +991,7 @@ export function PantallaInteligencia({
           <b>Sin Tranza</b>
           {onSalir && (
             <button className="texto-chico" type="button" onClick={onSalir}>
-              cerrar el mostrador
+              {textoSalir}
             </button>
           )}
           <span>Inteligencia{dia ? ` · ${fechaCorta(dia)}` : ""}</span>

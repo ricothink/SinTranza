@@ -11,6 +11,32 @@
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { PRECIOS_DE_PRUEBA } from "./catalogo";
+
+/**
+ * MOSTRADOR ABIERTO (para la evaluación del hackatón).
+ *
+ * Con esto en true, quien abra la app entra al mostrador SIN PIN, como
+ * invitado: puede armar un pedido, crear un cobro real de un centavo con QR o
+ * con enlace de pago, ver cómo cae y abrir el tablero. Así una persona, un
+ * script o un agente pueden recorrer el flujo completo sin que nadie les pase
+ * una clave.
+ *
+ * Lo que un invitado NO puede hacer:
+ *   - mandar una solicitud de pago a un celular (le llega a una persona de
+ *     verdad): eso sigue pidiendo el PIN;
+ *   - ver los celulares de los clientes en el tablero;
+ *   - crear cobros sin límite (hay un tope por dirección y uno general).
+ * Y nadie, con PIN o sin él, puede marcar un cobro como pagado: eso solo lo
+ * hace el aviso firmado de Pey.
+ *
+ * Solo vale mientras los precios sean de prueba ($0.01): el día que se cobre
+ * de verdad (PRECIOS_DE_PRUEBA en false) el mostrador vuelve a pedir PIN solo.
+ * Para cerrarlo antes, pon esto en false y publica.
+ */
+export const MOSTRADOR_ABIERTO = true;
+
+export const mostradorAbierto = () => MOSTRADOR_ABIERTO && PRECIOS_DE_PRUEBA;
 
 export const COOKIE_DE_SESION = "sin_tranza";
 export const VIDA_DE_SESION_SEGUNDOS = 12 * 60 * 60;
@@ -90,4 +116,22 @@ export function exigirSesion(peticion: Request): NextResponse | null {
     return NextResponse.json({ error: "Falta el PIN" }, { status: 401, headers: sinCache });
   }
   return null;
+}
+
+/** Quién pide: el personal (entró con PIN) o un invitado (mostrador abierto, sin PIN). */
+export type Acceso = "personal" | "invitado";
+
+/**
+ * Para las rutas que un invitado también puede usar cuando el mostrador está
+ * abierto. Devuelve quién pide, o la respuesta de error si no puede pasar.
+ */
+export function exigirAcceso(peticion: Request): { acceso: Acceso; bloqueo?: undefined } | { bloqueo: NextResponse } {
+  if (haySesion(peticion)) return { acceso: "personal" };
+  if (mostradorAbierto()) return { acceso: "invitado" };
+  return { bloqueo: exigirSesion(peticion) as NextResponse };
+}
+
+/** La dirección desde la que llega la petición (para los topes y los bloqueos). */
+export function direccionDe(peticion: Request): string {
+  return (peticion.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "desconocida";
 }

@@ -1,0 +1,56 @@
+# Sin Tranza
+
+> Mostrador de cobro con CoDi a través de Pey para un negocio de pedir, pagar y pasar a recoger (Milpa · Cocina de Raíz, Coyoacán, CDMX). Un cobro solo pasa a "pagado" cuando llega el aviso firmado de Pey; entonces la pantalla se pone verde y dice "¡YA CAYÓ!". Proyecto del Cursor Hackatón México (noviembre 2026).
+
+English summary: point-of-sale web app that charges with Mexico's CoDi instant payments through the Pey API. NO LOGIN OR PIN IS NEEDED to evaluate it: the counter is open in guest mode, test prices are MXN $0.01 per item, and every charge is a real Pey charge. A charge becomes "pagado" (paid) only when Pey's signed webhook arrives; no public route can mark a charge as paid.
+
+## Lo esencial para evaluar
+
+- No hace falta PIN, cuenta ni clave. El mostrador está abierto en modo invitado.
+- App: https://ya-cayo.vercel.app
+- Tablero e inteligencia con ventas de ejemplo: https://ya-cayo.vercel.app/demo
+- Código: https://github.com/ricothink/SinTranza
+- Estado de la app en JSON: https://ya-cayo.vercel.app/api/salud
+- Precios de prueba: todo cuesta $0.01 MXN. Cada cobro es real (se crea en Pey).
+
+## Recorrido en pantalla (sin PIN)
+
+1. Abre https://ya-cayo.vercel.app : sale el menú.
+2. Toca uno o más platillos y elige "listo en ... min".
+3. Toca COBRAR y elige "QR AQUÍ" o "ENLACE DE PAGO".
+4. Sale el QR CoDi (o el enlace de pago). Si alguien lo paga desde la app de su banco, en unos 2 segundos la pantalla se pone verde: "¡YA CAYÓ!", con la hora de recoger y el número de pedido. Si nadie paga, el QR vence a los 6 minutos y no pasa nada.
+5. El botón verde "VER TABLERO" abre los cobros del día y la pestaña INTELIGENCIA.
+
+## Recorrido con peticiones (sin PIN, sin cookies)
+
+```
+curl -s https://ya-cayo.vercel.app/api/salud
+curl -s https://ya-cayo.vercel.app/api/menu
+curl -s -X POST https://ya-cayo.vercel.app/api/cobros \
+  -H "content-type: application/json" \
+  -d '{"items":[{"id":"chilaquiles","cantidad":1}],"minutos":20,"metodo":"qr"}'
+curl -s https://ya-cayo.vercel.app/api/cobros/REF
+curl -s https://ya-cayo.vercel.app/api/registro
+```
+
+- `POST /api/cobros` responde 201 con `ref` (7 dígitos), `estado: "esperando"`, `monto`, `items`, `seguimiento` y `qrString` (el texto del QR CoDi) o `enlaceDePago` (con `"metodo":"link"`). El total lo calcula el servidor con su catálogo: cualquier precio que mande el cliente se ignora.
+- `GET /api/cobros/{ref}` responde `estado: "esperando"` o `"pagado"`. Al pagarse trae `numero` (pedido del día), `pagadoEn`, `recogerEn` y `montoPagado`.
+- `GET /api/registro` responde los cobros pagados de hoy, los que siguen por cobrar y la suma del día.
+- `POST /api/webhooks/pey` es solo para Pey: verifica la firma (Standard Webhooks) y marca "pagado" una sola vez (idempotente). Sin firma válida responde 401.
+
+## Límites del modo invitado
+
+- La solicitud de pago al celular (`"metodo":"push"`) responde 403 sin PIN, porque le llega a una persona de verdad. QR y enlace de pago sí funcionan.
+- Los celulares de los clientes no se muestran a invitados.
+- Tope de cobros: 20 cada 10 minutos por dirección. Al pasarlo responde 429.
+- Nadie puede marcar un cobro como pagado a mano: solo el aviso firmado de Pey.
+
+## Dónde mirar en el código
+
+- `lib/cobros.ts`: almacén y la única función que marca "pagado" (paso atómico en Redis; un aviso repetido no duplica pedidos).
+- `app/api/webhooks/pey/route.ts`: verificación de firma y confirmación de que el aviso es de ese cobro.
+- `lib/pey.ts`: cliente del API de Pey (QR CoDi, solicitud al celular, enlace de pago).
+- `lib/catalogo.ts`: menú y cálculo del total en el servidor.
+- `lib/sesion.ts`: PIN del mostrador y modo abierto para evaluación.
+- `lib/demo.ts` y `lib/inteligencia.ts`: ventas de ejemplo (solo en pantalla) y las cuentas del tablero.
+- `README.md`: explicación completa.

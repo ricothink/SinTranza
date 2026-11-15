@@ -128,6 +128,10 @@ function relanzar(elemento: HTMLElement | null, clase: string) {
 
 export default function Pagina() {
   const [sesion, setSesion] = useState<"cargando" | "no" | "si" | "sin_pin">("cargando");
+  /** true si entró con el PIN. Con el mostrador abierto se puede estar adentro sin PIN, como invitado. */
+  const [personal, setPersonal] = useState(false);
+  /** true si el mostrador deja entrar sin PIN (lib/sesion.ts). */
+  const [abierto, setAbierto] = useState(false);
   const [pin, setPin] = useState("");
   const [mensajePin, setMensajePin] = useState("");
   const [ocupadoPin, setOcupadoPin] = useState(false);
@@ -400,6 +404,7 @@ export default function Pagina() {
       if (respuesta.ok) {
         sonarSelloQR();
         setSesion("si");
+        setPersonal(true);
         setPin("");
         setMensajePin("");
         versionVista.current = null;
@@ -427,6 +432,7 @@ export default function Pagina() {
   const salir = useCallback(async () => {
     sonarTecla();
     await fetch("/api/sesion", { method: "DELETE" }).catch(() => {});
+    setPersonal(false);
     setSesion("no");
     setPin("");
     setMensajePin("");
@@ -434,6 +440,24 @@ export default function Pagina() {
     versionVista.current = null;
     refsVistas.current = null;
     setPantalla({ paso: "tienda" });
+  }, []);
+
+  /** Un invitado que quiere entrar como personal: se le enseña el teclado del PIN. */
+  const pedirPin = useCallback(() => {
+    sonarTecla();
+    setPin("");
+    setMensajePin("");
+    setSesion("no");
+  }, []);
+
+  /** Del teclado del PIN de vuelta al mostrador abierto, sin PIN. */
+  const seguirSinPin = useCallback(() => {
+    sonarTecla();
+    setPin("");
+    setMensajePin("");
+    versionVista.current = null;
+    setPantalla({ paso: "tienda" });
+    setSesion("si");
   }, []);
 
   // ------------------------------------------------------------ cobrar
@@ -638,8 +662,14 @@ export default function Pagina() {
     fetch("/api/sesion", { cache: "no-store" })
       .then(async (respuesta) => {
         if (!vigente) return;
-        if (respuesta.status === 503) setSesion("sin_pin");
-        else setSesion((await respuesta.json()).ok ? "si" : "no");
+        if (respuesta.status === 503) {
+          setSesion("sin_pin");
+          return;
+        }
+        const datos = (await respuesta.json()) as { ok?: boolean; personal?: boolean; abierto?: boolean };
+        setPersonal(datos.personal ?? Boolean(datos.ok));
+        setAbierto(Boolean(datos.abierto));
+        setSesion(datos.ok ? "si" : "no");
       })
       .catch(() => vigente && setSesion("no"));
     return () => {
@@ -889,6 +919,7 @@ export default function Pagina() {
         onTecla={teclaPin}
         onPulsar={pulsarPin}
         onEntrar={() => void entrarConPin()}
+        onSeguirSinPin={abierto && sesion === "no" ? seguirSinPin : undefined}
       />
     );
   }
@@ -961,7 +992,8 @@ export default function Pagina() {
           ejemplos={ejemplos}
           onVista={cambiarVista}
           onVolver={cerrarRegistro}
-          onSalir={() => void salir()}
+          textoSalir={personal ? "cerrar el mostrador" : "entrar con PIN"}
+          onSalir={personal ? () => void salir() : pedirPin}
         />
       );
     case "inteligencia":
@@ -972,7 +1004,8 @@ export default function Pagina() {
           ejemplos={ejemplos}
           onVista={cambiarVista}
           onVolver={cerrarRegistro}
-          onSalir={() => void salir()}
+          textoSalir={personal ? "cerrar el mostrador" : "entrar con PIN"}
+          onSalir={personal ? () => void salir() : pedirPin}
         />
       );
     case "metodo":
@@ -1040,6 +1073,7 @@ export default function Pagina() {
           onCobrar={cobrarTienda}
           onOtroMonto={() => setPantalla({ paso: "teclado" })}
           onAbrirRegistro={() => abrirRegistro("tienda")}
+          invitado={!personal}
         />
       );
   }

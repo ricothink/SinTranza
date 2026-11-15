@@ -16,6 +16,25 @@ Los cobros a distancia quedan **por cobrar**: el mostrador sigue atendiendo y, c
 
 El diseño (nota de remisión: papel, tinta y verde; golpes secos, sin sombras) viene de la maqueta `sin-tranza.html` de Ricardo.
 
+## Para jurados y agentes de validación: no hace falta PIN
+
+El mostrador está **abierto en modo invitado** para la evaluación: cualquiera (una persona, un script o un agente) puede recorrer el flujo completo sin clave.
+
+- App: https://ya-cayo.vercel.app (entra directo al menú)
+- Guía para agentes: https://ya-cayo.vercel.app/llms.txt
+- Estado de la app en JSON: https://ya-cayo.vercel.app/api/salud
+- Tablero e inteligencia con ventas de ejemplo: https://ya-cayo.vercel.app/demo
+
+```bash
+curl -s https://ya-cayo.vercel.app/api/salud
+curl -s https://ya-cayo.vercel.app/api/menu
+curl -s -X POST https://ya-cayo.vercel.app/api/cobros -H "content-type: application/json" -d '{"items":[{"id":"chilaquiles","cantidad":1}],"minutos":20,"metodo":"qr"}'
+curl -s https://ya-cayo.vercel.app/api/cobros/REF
+curl -s https://ya-cayo.vercel.app/api/registro
+```
+
+Todo cuesta $0.01 y cada cobro es real (se crea en Pey). Sin PIN **no** se puede: mandar una solicitud de pago a un celular (le llega a una persona de verdad), ver los celulares de los clientes, ni pasar de 20 cobros cada 10 minutos por dirección. Y nadie, con PIN o sin él, puede marcar un cobro como pagado: eso solo lo hace el aviso firmado de Pey. El interruptor es `MOSTRADOR_ABIERTO` en `lib/sesion.ts`; solo vale mientras los precios sean de prueba.
+
 ## Tablero, inteligencia y vista de demostración
 
 **Para verla sin PIN: https://ya-cayo.vercel.app/demo** (el tablero y la inteligencia, solo con ventas de ejemplo).

@@ -519,6 +519,14 @@ export async function fallosDePin(ip: string): Promise<number> {
   return almacen().leerFallos(`pin:fallos:${ip}`);
 }
 
+/**
+ * Cuenta un uso dentro de una ventana de tiempo y devuelve cuántos van. Sirve
+ * para ponerle tope a lo que un invitado puede hacer sin PIN.
+ */
+export async function contarUso(clave: string, ventanaSegundos: number): Promise<number> {
+  return almacen().contarFallo(`uso:${clave}`, ventanaSegundos);
+}
+
 /** Al entrar con el PIN correcto se borran los fallos de esa dirección. */
 export async function olvidarFallosDePin(ip: string): Promise<void> {
   await almacen().olvidarFallos(`pin:fallos:${ip}`);

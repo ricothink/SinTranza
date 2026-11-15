@@ -8,22 +8,32 @@
 
 import { NextResponse } from "next/server";
 import { contarFalloDePin, fallosDePin, olvidarFallosDePin } from "@/lib/cobros";
-import { cabeceraDeCookie, crearSesion, haySesion, pinCorrecto, sesionConfigurada } from "@/lib/sesion";
+import {
+  cabeceraDeCookie,
+  crearSesion,
+  direccionDe,
+  haySesion,
+  mostradorAbierto,
+  pinCorrecto,
+  sesionConfigurada,
+} from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
 const sinCache = { "Cache-Control": "no-store" };
 const MAX_FALLOS = 5;
 
-function direccionDe(peticion: Request): string {
-  return (peticion.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "desconocida";
-}
-
+// ok       → se puede usar el mostrador (con PIN, o sin él si está abierto)
+// personal → entró con el PIN (puede mandar solicitudes al celular y ve los celulares)
+// abierto  → el mostrador deja entrar sin PIN, como invitado
 export async function GET(peticion: Request) {
-  if (!sesionConfigurada()) {
+  const abierto = mostradorAbierto();
+  const configurada = sesionConfigurada();
+  if (!configurada && !abierto) {
     return NextResponse.json({ ok: false, configurada: false }, { status: 503, headers: sinCache });
   }
-  return NextResponse.json({ ok: haySesion(peticion), configurada: true }, { headers: sinCache });
+  const personal = haySesion(peticion);
+  return NextResponse.json({ ok: personal || abierto, personal, abierto, configurada }, { headers: sinCache });
 }
 
 export async function POST(peticion: Request) {

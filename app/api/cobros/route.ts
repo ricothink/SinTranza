@@ -1,4 +1,5 @@
-// POST /api/cobros   (solo con sesión del mostrador)
+// POST /api/cobros   (con sesión del mostrador; sin PIN también, como invitado,
+//                     mientras el mostrador esté abierto: ver lib/sesion.ts)
 // Recibe la venta, guarda el cobro como "esperando", lo pide a Pey y devuelve
 // lo que el mostrador necesita para cobrarlo.
 //
@@ -24,6 +25,7 @@ import {
   AlmacenNoConfigurado,
   anotarEnCobro,
   asignarQr,
+  contarUso,
   descartarCobro,
   guardarCobroEsperando,
   type Metodo,
@@ -38,7 +40,7 @@ import {
   MONTO_MAXIMO_PN,
   PeyError,
 } from "@/lib/pey";
-import { exigirSesion } from "@/lib/sesion";
+import { direccionDe, exigirAcceso } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +65,14 @@ function leerMonto(valor: unknown): number | null {
   return monto > 0 ? monto : null;
 }
 
+// Topes para quien cobra sin PIN (mostrador abierto): por dirección y en total.
+const MAX_COBROS_DE_INVITADO_POR_DIRECCION = 20; // cada 10 minutos
+const MAX_COBROS_DE_INVITADOS_EN_TOTAL = 240; // cada hora
+
 export async function POST(peticion: Request) {
-  const bloqueo = exigirSesion(peticion);
-  if (bloqueo) return bloqueo;
+  const paso = exigirAcceso(peticion);
+  if (paso.bloqueo) return paso.bloqueo;
+  const invitado = paso.acceso === "invitado";
 
   let cuerpo: unknown;
   try {
@@ -82,6 +89,37 @@ export async function POST(peticion: Request) {
     return error400("Forma de pago no válida");
   }
   const metodo: Metodo = metodoPedido;
+
+  // ---- sin PIN no se le manda nada al celular de nadie, y hay un tope de cobros
+  if (invitado) {
+    if (metodo === "push") {
+      return NextResponse.json(
+        {
+          error:
+            "La solicitud al celular le llega a una persona de verdad, por eso pide el PIN del mostrador. Sin PIN puedes cobrar con QR o con enlace de pago.",
+          necesitaPin: true,
+        },
+        { status: 403, headers: sinCache },
+      );
+    }
+    try {
+      const [suyos, deTodos] = await Promise.all([
+        contarUso(`cobros:${direccionDe(peticion)}`, 10 * 60),
+        contarUso("cobros:todos", 60 * 60),
+      ]);
+      if (suyos > MAX_COBROS_DE_INVITADO_POR_DIRECCION || deTodos > MAX_COBROS_DE_INVITADOS_EN_TOTAL) {
+        return NextResponse.json(
+          { error: "Van muchos cobros de prueba seguidos. Espera unos minutos e intenta de nuevo." },
+          { status: 429, headers: { ...sinCache, "Retry-After": "600" } },
+        );
+      }
+    } catch (error) {
+      if (error instanceof AlmacenNoConfigurado) {
+        return NextResponse.json({ error: "La app todavía no está configurada" }, { status: 503, headers: sinCache });
+      }
+      throw error;
+    }
+  }
 
   // ---- celular del cliente (obligatorio para la solicitud, opcional para el enlace)
   let telefono: string | undefined;

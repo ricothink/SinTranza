@@ -4,15 +4,15 @@
 import { NextResponse } from "next/server";
 import { AlmacenNoConfigurado, leerCobro } from "@/lib/cobros";
 import { FORMATO_NUM_REF } from "@/lib/pey";
-import { exigirSesion } from "@/lib/sesion";
+import { exigirAcceso } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
 const sinCache = { "Cache-Control": "no-store" };
 
 export async function GET(peticion: Request, { params }: { params: Promise<{ ref: string }> }) {
-  const bloqueo = exigirSesion(peticion);
-  if (bloqueo) return bloqueo;
+  const paso = exigirAcceso(peticion);
+  if (paso.bloqueo) return paso.bloqueo;
 
   const { ref } = await params;
   if (!FORMATO_NUM_REF.test(ref)) {

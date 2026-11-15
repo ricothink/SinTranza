@@ -19,3 +19,6 @@ npm-debug.log*
 # Archivo local con la llave de Pey: nunca al repo.
 local.env.txt
 *.env.txt
+
+# Videos sueltos: no van al repositorio.
+*.mp4

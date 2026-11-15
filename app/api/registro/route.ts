@@ -17,15 +17,17 @@ import {
 } from "@/lib/cobros";
 import { urlPublica } from "@/lib/negocio";
 import type { CobroPendiente, CobroRegistrado, ResumenDelDia } from "@/lib/registro";
-import { exigirSesion } from "@/lib/sesion";
+import { exigirAcceso } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
 const sinCache = { "Cache-Control": "no-store" };
 
 export async function GET(peticion: Request) {
-  const bloqueo = exigirSesion(peticion);
-  if (bloqueo) return bloqueo;
+  const paso = exigirAcceso(peticion);
+  if (paso.bloqueo) return paso.bloqueo;
+  // Los celulares de los clientes solo los ve el personal (con PIN), nunca un invitado.
+  const conCelulares = paso.acceso === "personal";
 
   try {
     const version = await versionDelRegistro();
@@ -49,7 +51,7 @@ export async function GET(peticion: Request) {
         recogerEn: cobro.minutos !== undefined ? pagadoEn + cobro.minutos * 60_000 : undefined,
         minutos: cobro.minutos,
         items: cobro.items,
-        telefono: cobro.telefono,
+        telefono: conCelulares ? cobro.telefono : undefined,
       };
     });
 
@@ -63,7 +65,7 @@ export async function GET(peticion: Request) {
         venceEn: cobro.venceEn,
         minutos: cobro.minutos,
         items: cobro.items,
-        telefono: cobro.telefono,
+        telefono: conCelulares ? cobro.telefono : undefined,
         seguimiento: `${publica}/p/${cobro.ref}?t=${cobro.token ?? ""}`,
         enlaceDePago: cobro.linkUrl,
       }));
