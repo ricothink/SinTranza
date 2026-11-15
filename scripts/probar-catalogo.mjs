@@ -3,13 +3,15 @@
 //
 //   node scripts/probar-catalogo.mjs https://mi-app.vercel.app
 //
-// No necesita secretos. Crea 5 QR reales de Pey que nadie paga: es inofensivo.
+// Necesita el PIN del mostrador (PIN_MOSTRADOR en el entorno). Crea 5 QR reales de Pey que nadie paga: es inofensivo.
 //
 // OJO: los totales esperados suponen PRECIOS_DE_PRUEBA = true en lib/catalogo.ts
 // (todo cuesta $0.01). Con los precios reales hay que ajustar PRECIO.
 //
 // Lo importante: el celular solo manda "qué platillo, cuántos y en cuántos
 // minutos". Si manda un precio o un monto propio, el servidor lo ignora.
+
+import { conSesion, entrar } from "./sesion-pruebas.mjs";
 
 const base = (process.argv[2] || "http://localhost:3000").replace(/\/+$/, "");
 const PRECIO = 0.01;
@@ -21,12 +23,17 @@ function revisar(nombre, paso, detalle) {
   console.log(`${paso ? "PASA " : "FALLA"} | ${hora()} | ${nombre} | ${detalle}`);
 }
 
+const cookie = await entrar(base);
+
 async function pedir(cuerpo) {
-  const r = await fetch(`${base}/api/cobros`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo),
-  });
+  const r = await fetch(
+    `${base}/api/cobros`,
+    conSesion(cookie, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: typeof cuerpo === "string" ? cuerpo : JSON.stringify(cuerpo),
+    }),
+  );
   let json = null;
   try {
     json = await r.json();
@@ -51,7 +58,7 @@ revisar(
 );
 
 if (buena.json?.ref) {
-  const estado = await (await fetch(`${base}/api/cobros/${buena.json.ref}`, { cache: "no-store" })).json();
+  const estado = await (await fetch(`${base}/api/cobros/${buena.json.ref}`, conSesion(cookie, { cache: "no-store" }))).json();
   revisar(
     "El estado del cobro devuelve lo pedido y los minutos, sin hora de recoger mientras no se pague",
     estado.estado === "esperando" &&
@@ -63,7 +70,7 @@ if (buena.json?.ref) {
     `estado=${estado.estado}, minutos=${estado.minutos}, recogerEn=${estado.recogerEn}, numero=${estado.numero}`,
   );
 
-  const registro = await (await fetch(`${base}/api/registro`, { cache: "no-store" })).json();
+  const registro = await (await fetch(`${base}/api/registro`, conSesion(cookie, { cache: "no-store" }))).json();
   revisar(
     "El registro del día solo lista lo que el banco ya selló (un cobro esperando no sale)",
     typeof registro.cuantos === "number" &&

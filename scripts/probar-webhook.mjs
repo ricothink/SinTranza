@@ -16,6 +16,7 @@
 
 import { randomUUID } from "node:crypto";
 import { Webhook } from "standardwebhooks";
+import { conSesion, entrar } from "./sesion-pruebas.mjs";
 
 const base = (process.argv[2] || "http://localhost:3000").replace(/\/+$/, "");
 const secreto = process.env.PEY_WEBHOOK_SECRET;
@@ -25,6 +26,8 @@ if (!secreto) {
 }
 
 const firmador = new Webhook(secreto);
+// Los avisos de Pey no llevan sesión (llevan firma); lo demás sí exige el PIN del mostrador.
+const cookie = await entrar(base);
 const resultados = [];
 const hora = () => new Date().toISOString();
 
@@ -34,11 +37,10 @@ function revisar(nombre, paso, detalle) {
 }
 
 async function crearCobro(cuerpo = { monto: "0.01" }) {
-  const r = await fetch(`${base}/api/cobros`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(cuerpo),
-  });
+  const r = await fetch(
+    `${base}/api/cobros`,
+    conSesion(cookie, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) }),
+  );
   const datos = await r.json();
   if (r.status !== 201) throw new Error(`No se pudo crear el cobro: ${r.status} ${JSON.stringify(datos)}`);
   // El identificador del QR viene dentro del propio texto del QR (campo IDC).
@@ -46,7 +48,7 @@ async function crearCobro(cuerpo = { monto: "0.01" }) {
   return { ref: datos.ref, codiQrId };
 }
 
-const estado = async (ref) => (await fetch(`${base}/api/cobros/${ref}`, { cache: "no-store" })).json();
+const estado = async (ref) => (await fetch(`${base}/api/cobros/${ref}`, conSesion(cookie, { cache: "no-store" }))).json();
 
 function aviso(ref, codiQrId) {
   return JSON.stringify({
@@ -128,11 +130,11 @@ const buenasA = cabecerasFirmadas(cuerpoA);
 
 // ---------------------------------------------------------------- el navegador no puede marcar
 for (const metodo of ["POST", "PUT", "PATCH", "DELETE"]) {
-  const r = await fetch(`${base}/api/cobros/${a.ref}`, {
-    method: metodo,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ estado: "pagado" }),
-  });
+  // Ni con la sesión del mostrador hay ruta que acepte cambiar el estado: da 405.
+  const r = await fetch(
+    `${base}/api/cobros/${a.ref}`,
+    conSesion(cookie, { method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ estado: "pagado" }) }),
+  );
   const e = await estado(a.ref);
   revisar(`${metodo} al estado desde fuera → no cambia nada`, r.status === 405 && e.estado === "esperando", `HTTP ${r.status}, estado=${e.estado}`);
 }
@@ -189,7 +191,7 @@ revisar(
     `ref=${b.ref}: marcado=${marcados}, ya_pagado=${repetidos}`,
   );
   const eb = await estado(b.ref);
-  const regB = (await (await fetch(`${base}/api/registro`, { cache: "no-store" })).json()).cobros.filter((c) => c.ref === b.ref);
+  const regB = (await (await fetch(`${base}/api/registro`, conSesion(cookie, { cache: "no-store" }))).json()).cobros.filter((c) => c.ref === b.ref);
   revisar(
     "10 avisos al mismo tiempo: un solo número de pedido y una sola fila en el registro",
     Number.isInteger(eb.numero) && eb.numero !== trasPrimero.numero && regB.length === 1 && regB[0].numero === eb.numero,
@@ -199,7 +201,7 @@ revisar(
 
 // ---------------------------------------------------------------- número de pedido y registro del día
 {
-  const registro = async () => (await fetch(`${base}/api/registro`, { cache: "no-store" })).json();
+  const registro = async () => (await fetch(`${base}/api/registro`, conSesion(cookie, { cache: "no-store" }))).json();
   const reg = await registro();
   const filaA = reg.cobros.filter((c) => c.ref === a.ref);
   revisar(

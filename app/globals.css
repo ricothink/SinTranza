@@ -900,6 +900,220 @@ button:focus-visible {
   margin: 10px;
 }
 
+/* ---------- botones y avisos de la nota ---------- */
+.accion {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 8px 12px;
+  border: 3px solid var(--tinta);
+  background: var(--papel);
+  color: var(--tinta);
+  font: 700 clamp(17px, 2.9vh, 25px) / 1.1 var(--cond);
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-decoration: none;
+}
+.accion.primaria {
+  background: var(--tinta);
+  color: var(--papel);
+}
+.accion:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+.accion.primaria:active {
+  background: var(--papel);
+  color: var(--tinta);
+}
+.accion-verde {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 3px solid var(--blanco);
+  color: var(--blanco);
+  font: 700 clamp(17px, 2.8vh, 24px) / 1.1 var(--cond);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-decoration: none;
+}
+.accion-verde:active {
+  background: var(--blanco);
+  color: var(--billete);
+}
+.instruccion {
+  padding: 14px;
+  border: 3px dashed var(--tinta);
+}
+.instruccion b {
+  display: block;
+  font: 700 clamp(24px, 4.6vh, 40px) / 1 var(--cond);
+  letter-spacing: 0.01em;
+}
+.instruccion p {
+  margin-top: 8px;
+  font: 400 clamp(14px, 2.1vh, 17px) / 1.4 var(--leg);
+}
+.resumen-pedido {
+  font: 700 12px/1.35 var(--leg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.entrega {
+  flex: none;
+  padding: 6px 14px;
+  background: var(--tinta);
+  color: var(--papel);
+  font: 700 12px/1.2 var(--leg);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tira .pend {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-left: 3px dashed var(--tinta);
+  font: 700 clamp(12px, 2.2vh, 16px) / 1 var(--cond);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.tecla.vacia {
+  background: var(--papel);
+}
+.tecla.entrar {
+  background: var(--tinta);
+  color: var(--papel);
+  font-size: clamp(20px, 3.4vh, 32px);
+  letter-spacing: 0.04em;
+}
+.tecla.entrar.pisada {
+  background: var(--papel);
+  color: var(--tinta);
+}
+.omitir {
+  align-self: center;
+  margin: 0 14px 12px;
+}
+
+/* ---------- ¿cómo paga? ---------- */
+.metodo {
+  display: grid;
+  grid-template: "info" auto "opciones" minmax(0, 1fr) / 100%;
+}
+.opciones {
+  grid-area: opciones;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  overflow-y: auto;
+}
+.opcion {
+  flex: 1;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 3px solid var(--tinta);
+  background: var(--papel);
+  color: var(--tinta);
+  text-align: left;
+}
+.opcion b {
+  font: 700 clamp(26px, 4.4vh, 40px) / 1 var(--cond);
+  letter-spacing: 0.01em;
+}
+.opcion span {
+  font: 700 clamp(11px, 1.7vh, 14px) / 1.3 var(--leg);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.opcion:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+/* ---------- cobro a distancia en espera y página del cliente ---------- */
+.remota {
+  display: grid;
+  grid-template: "info" auto "cuerpo" minmax(0, 1fr) "estado" auto / 100%;
+}
+.remota-cuerpo {
+  grid-area: cuerpo;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+.cliente {
+  flex-direction: column;
+}
+.cliente .importe {
+  flex: none;
+  height: clamp(76px, 14vh, 120px);
+}
+.cliente .letra {
+  border-bottom: 3px solid var(--tinta);
+  min-height: 0;
+}
+.cliente-cuerpo {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow-y: auto;
+}
+.cliente .estado {
+  flex: none;
+  padding-top: 8px;
+}
+
+/* ---------- registro: por cobrar y acciones ---------- */
+.subtitulo {
+  padding: 8px 14px 7px;
+  background: var(--tinta);
+  color: var(--papel);
+  font: 600 13px/1.2 var(--cond);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.fila.falta {
+  border-bottom-style: dashed;
+}
+.fila.falta .pag {
+  border-style: dashed;
+  transform: none;
+}
+.mini {
+  flex: none;
+  margin: 2px 0 4px;
+  padding: 8px 10px;
+  border: 3px solid var(--tinta);
+  background: var(--papel);
+  color: var(--tinta);
+  font: 700 11px/1 var(--leg);
+  letter-spacing: 0.1em;
+  text-decoration: none;
+}
+.mini:active {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
 /* ---------- movimiento: golpes secos, nada se desliza ---------- */
 @keyframes golpe {
   0% { transform: scale(1.07); }
@@ -1047,6 +1261,26 @@ button:focus-visible {
   }
   .volver {
     margin: 0 14px 14px;
+  }
+  .metodo {
+    grid-template: "opciones info" minmax(0, 1fr) / minmax(0, 1fr) 44%;
+  }
+  .opciones {
+    padding: 14px;
+    gap: 14px;
+  }
+  .remota {
+    grid-template: "cuerpo info" minmax(0, 1fr) "cuerpo estado" auto / minmax(0, 1fr) 44%;
+  }
+  .remota-cuerpo,
+  .cliente-cuerpo {
+    padding: 18px 22px;
+  }
+  .entrega {
+    padding: 8px 22px;
+  }
+  .cliente .estado {
+    padding: 8px 22px 14px;
   }
   .teclado {
     width: 44%;

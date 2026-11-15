@@ -1,15 +1,19 @@
-// GET /api/cobros/[ref]
+// GET /api/cobros/[ref]   (solo con sesión del mostrador)
 // Devuelve el estado del cobro. Solo lee: desde aquí no se puede cambiar nada.
 
 import { NextResponse } from "next/server";
 import { AlmacenNoConfigurado, leerCobro } from "@/lib/cobros";
 import { FORMATO_NUM_REF } from "@/lib/pey";
+import { exigirSesion } from "@/lib/sesion";
 
 export const dynamic = "force-dynamic";
 
 const sinCache = { "Cache-Control": "no-store" };
 
-export async function GET(_peticion: Request, { params }: { params: Promise<{ ref: string }> }) {
+export async function GET(peticion: Request, { params }: { params: Promise<{ ref: string }> }) {
+  const bloqueo = exigirSesion(peticion);
+  if (bloqueo) return bloqueo;
+
   const { ref } = await params;
   if (!FORMATO_NUM_REF.test(ref)) {
     return NextResponse.json({ error: "No existe ese cobro" }, { status: 404, headers: sinCache });
@@ -24,6 +28,7 @@ export async function GET(_peticion: Request, { params }: { params: Promise<{ re
       {
         ref: cobro.ref,
         estado: cobro.estado,
+        metodo: cobro.metodo,
         monto: cobro.monto,
         items: cobro.items,
         minutos: cobro.minutos,
@@ -31,6 +36,7 @@ export async function GET(_peticion: Request, { params }: { params: Promise<{ re
         venceEn: cobro.venceEn,
         // Solo vienen cuando ya está pagado:
         montoPagado: cobro.montoPagado,
+        comision: cobro.comision,
         numero: cobro.numero,
         pagadoEn: cobro.pagadoEn,
         // A qué hora debe regresar el cliente: el pago más los minutos que se le dijeron.
